@@ -11,9 +11,11 @@ from datetime import datetime
 from pathlib import Path
 
 # ─── CREDENCIALES — leer de env vars (requerido en producción/Docker) ─────────
-OPENAI_KEY = os.environ.get("OPENAI_API_KEY", "")
-OR_KEY     = os.environ.get("OPENROUTER_API_KEY", "")
-MAPS_KEY   = os.environ.get("GOOGLE_MAPS_API_KEY", "")
+OPENAI_KEY  = os.environ.get("OPENAI_API_KEY", "")
+OR_KEY      = os.environ.get("OPENROUTER_API_KEY", "")
+MAPS_KEY    = os.environ.get("GOOGLE_MAPS_API_KEY", "")
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+GITHUB_REPO  = os.environ.get("GITHUB_REPO", "Infohpg/ia-search-leads")
 if not OPENAI_KEY or not MAPS_KEY:
     raise RuntimeError("OPENAI_API_KEY y GOOGLE_MAPS_API_KEY son requeridas (vars de entorno)")
 
@@ -774,6 +776,31 @@ def main():
         for l in sorted(leads, key=lambda x: x.get("score_urgencia", 0), reverse=True)[:10]:
             lona = " 🔴LONA" if l.get("lona_visible") else ""
             log(f"  [{l['score_urgencia']}/10] yr:{l.get('year_built','?')} {l['address']}{lona}")
+
+    push_csv_to_github()
+
+def push_csv_to_github():
+    """Push leads_para_ventas.csv to data/ in GitHub repo so Apps Script can import it."""
+    if not GITHUB_TOKEN or not LEADS_CSV_FILE.exists():
+        log("⚠️ GitHub push skipped (no token or CSV missing)")
+        return
+    try:
+        content = base64.b64encode(LEADS_CSV_FILE.read_bytes()).decode()
+        api_path = f"https://api.github.com/repos/{GITHUB_REPO}/contents/data/leads_para_ventas.csv"
+        headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+        # Get current SHA if file exists (needed for update)
+        existing = requests.get(api_path, headers=headers, timeout=15).json()
+        sha = existing.get("sha", "")
+        payload = {"message": f"auto: scanner run {datetime.now().strftime('%Y-%m-%d')}", "content": content}
+        if sha:
+            payload["sha"] = sha
+        r = requests.put(api_path, headers=headers, json=payload, timeout=30)
+        if r.status_code in (200, 201):
+            log(f"✅ CSV pushed to GitHub ({LEADS_CSV_FILE.stat().st_size} bytes)")
+        else:
+            log(f"⚠️ GitHub push failed: HTTP {r.status_code} — {r.json().get('message','?')[:60]}")
+    except Exception as e:
+        log(f"⚠️ GitHub push error: {e}")
 
 if __name__ == "__main__":
     main()
