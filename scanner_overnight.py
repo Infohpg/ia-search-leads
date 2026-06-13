@@ -79,7 +79,7 @@ def append_lead_to_csv(record):
 
 # ─── PARÁMETROS DE CORRIDA ────────────────────────────────────────────────────
 TARGET_LEADS = 9999
-MAX_ANALYZED = 330   # ~$0.30-0.50/día | doblemente blindado por MAX_API_CALLS y MAX_SPEND_USD
+MAX_ANALYZED = int(os.environ.get("SCANNER_MAX", "330"))  # override con SCANNER_MAX env var (testing)
 
 # ─── MODELOS — (provider, model_id) en orden de prioridad ────────────────────
 MODELS = [
@@ -630,6 +630,8 @@ def main():
     candidates_hq = 0  # paso2 runs with detail:high (blue candidates)
     run_status = "OK"
     leads_at_start = len(leads)
+    last_push_ts   = time.time()   # incremental push tracking
+    leads_since_push = 0           # push every 5 leads or every 120s
     zip_analyzed = {}; zip_leads = {}  # per-ZIP counters for stats update
 
     for prop in props:
@@ -855,6 +857,12 @@ def main():
             append_lead_to_csv(record)
             cache_folio(folio_cache, folio, "lead", score=final)
             zip_leads[prop.get("zip", "??")] = zip_leads.get(prop.get("zip", "??"), 0) + 1
+            # Incremental push: cada 5 leads nuevos o cada 2 minutos (rate-limit friendly)
+            leads_since_push += 1
+            if leads_since_push >= 5 or (time.time() - last_push_ts) >= 120:
+                push_csv_to_github(quiet=True)
+                last_push_ts = time.time()
+                leads_since_push = 0
         else:
             clean += 1
             cache_folio(folio_cache, folio, "clean", score=final)
@@ -953,16 +961,16 @@ def write_run_history(run_zips, analyzed, candidates_hq, leads_new, leads_total,
     except Exception as e:
         log(f"⚠️ run_history push error: {e}")
 
-def push_csv_to_github():
+def push_csv_to_github(quiet=False):
     """Push leads_para_ventas.csv to data/ in GitHub repo so Apps Script can import it."""
     if not GITHUB_TOKEN or not LEADS_CSV_FILE.exists():
-        log("⚠️ GitHub push skipped (no token or CSV missing)")
+        if not quiet:
+            log("⚠️ GitHub push skipped (no token or CSV missing)")
         return
     try:
         content = base64.b64encode(LEADS_CSV_FILE.read_bytes()).decode()
         api_path = f"https://api.github.com/repos/{GITHUB_REPO}/contents/data/leads_para_ventas.csv"
         headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
-        # Get current SHA if file exists (needed for update)
         existing = requests.get(api_path, headers=headers, timeout=15).json()
         sha = existing.get("sha", "")
         payload = {"message": f"auto: scanner run {datetime.now().strftime('%Y-%m-%d')}", "content": content}
@@ -970,7 +978,10 @@ def push_csv_to_github():
             payload["sha"] = sha
         r = requests.put(api_path, headers=headers, json=payload, timeout=30)
         if r.status_code in (200, 201):
-            log(f"✅ CSV pushed to GitHub ({LEADS_CSV_FILE.stat().st_size} bytes)")
+            if not quiet:
+                log(f"✅ CSV pushed to GitHub ({LEADS_CSV_FILE.stat().st_size} bytes)")
+            else:
+                logp(f"  → CSV push incremental OK ({LEADS_CSV_FILE.stat().st_size} bytes)\n")
         else:
             log(f"⚠️ GitHub push failed: HTTP {r.status_code} — {r.json().get('message','?')[:60]}")
     except Exception as e:
