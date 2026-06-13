@@ -6,7 +6,7 @@ HPG Overnight Roof Scanner v3
 - Límites duros: MAX_API_CALLS y MAX_SPEND_USD (sin excepciones)
 """
 
-import os, requests, base64, json, re, time, csv
+import os, requests, base64, json, re, time, csv, random
 from datetime import datetime
 from pathlib import Path
 
@@ -69,8 +69,8 @@ def append_lead_to_csv(record):
         writer.writerow(row)
 
 # ─── PARÁMETROS DE CORRIDA ────────────────────────────────────────────────────
-TARGET_LEADS = 9999  # revisar las 2000 casas completas
-MAX_ANALYZED = 2000  # doblemente blindado por MAX_API_CALLS=2200 y MAX_SPEND_USD=3.00
+TARGET_LEADS = 9999
+MAX_ANALYZED = 330   # ~$0.30-0.50/día | doblemente blindado por MAX_API_CALLS y MAX_SPEND_USD
 
 # ─── MODELOS — (provider, model_id) en orden de prioridad ────────────────────
 MODELS = [
@@ -81,12 +81,38 @@ MODELS = [
     # MUERTOS: moonshotai/kimi-k2.6:free (404), google/gemma-4-27b-it:free (400)
 ]
 
-# ─── ZIPs — Hialeah + Miami target areas ────────────────────────────────────
-ZIPS = [
-    "33010", "33012", "33013",  # Hialeah core
-    "33135", "33150", "33127",  # SW Miami / Little Havana / Liberty City
-    "33137", "33147",           # Little Haiti / Liberty City NW
-]
+# ─── MODO HURACÁN ─────────────────────────────────────────────────────────────
+# Cuando activo: 100% budget a HURRICANE_ZIPS, re-analiza "clean" anteriores a HURRICANE_DATE
+HURRICANE_ZIPS = []    # e.g. ["33013","33012"] — vacío = modo normal
+HURRICANE_DATE = ""    # e.g. "2026-09-15" — re-analizar clean folios antes de esta fecha
+
+# ─── TODAS LAS ZIPs de Miami-Dade con inventario pre-2000 SFH ────────────────
+# Inventario validado via GIS Miami-Dade ArcGIS REST API (returnCountOnly)
+ALL_ZIPS = {
+    # Hialeah / Hialeah Gardens / Miami Lakes
+    "33010": 3682, "33012": 7986, "33013": 6409, "33016": 2901, "33018": 6548,
+    # Opa-locka / Carol City / NW Miami
+    "33054": 5749, "33055": 4532, "33056": 5319,
+    # Little Havana / SW Miami / Flagami
+    "33125": 3217, "33126": 5274, "33127": 2516, "33128": 1023,
+    "33134": 7488, "33135": 3892, "33136": 2184,
+    # Little Haiti / Liberty City / Allapattah
+    "33137": 3428, "33138": 4332, "33142": 4809, "33147": 8299, "33150": 3563,
+    # Coconut Grove / South Miami / Coral Gables
+    "33133": 3154, "33143": 2984, "33144": 4109, "33155": 10892,
+    # Kendall / Westchester / West Miami-Dade (grandes — mayoría inexplorados)
+    "33165": 12933, "33172": 3109, "33174": 3987, "33175": 9468, "33176": 10184,
+    "33177": 10956, "33182": 2614, "33183": 3452, "33184": 3814, "33185": 4125,
+    "33186": 10511, "33187": 2983, "33193": 3127, "33194": 2841,
+    # South Miami-Dade / Cutler Bay / Palmetto Bay
+    "33157": 14684, "33189": 2418, "33196": 2619,
+    # Homestead / Florida City
+    "33030": 3419, "33031": 2847, "33032": 2561, "33033": 5896,
+    # North Miami / Aventura / NE
+    "33161": 3571, "33162": 3842,
+}
+
+ZIP_STATS_FILE = OUT_DIR / "zip_stats.json"
 
 # ─── ESTADÍSTICAS GLOBALES ────────────────────────────────────────────────────
 STATS = {"api_calls": 0, "spend_usd": 0.0, "last_call_spend": 0.0}
@@ -334,20 +360,22 @@ def ai_call(images, prompt, max_tokens=300):
 
 # ─── GIS ──────────────────────────────────────────────────────────────────────
 
-def get_properties(zip_codes, max_count=2000):
+def get_properties(zip_codes, zip_stats=None):
+    """Fetch SFH properties from Miami-Dade GIS. Uses per-ZIP offset from zip_stats for pagination."""
+    if zip_stats is None:
+        zip_stats = {}
     all_props = []
+    BASE = "https://gisweb.miamidade.gov/arcgis/rest/services/MD_LandInformation/MapServer/24/query"
     for zc in zip_codes:
+        offset = 0 if HURRICANE_ZIPS else zip_stats.get(zc, {}).get("gis_offset", 0)
         try:
-            r = requests.get(
-                "https://gisweb.miamidade.gov/arcgis/rest/services/MD_LandInformation/MapServer/24/query",
-                params={
-                    "where": f"TRUE_SITE_ZIP_CODE LIKE '{zc}%' AND DOR_CODE_CUR LIKE '01%' AND YEAR_BUILT < 2000 AND CONDO_FLAG='N'",
-                    "outFields": "FOLIO,TRUE_SITE_ADDR,TRUE_SITE_CITY,TRUE_SITE_ZIP_CODE,YEAR_BUILT",
-                    "returnGeometry": "true", "outSR": "4326", "f": "json",
-                    "resultRecordCount": 500, "orderByFields": "YEAR_BUILT ASC"
-                },
-                headers={"User-Agent": "Mozilla/5.0"}, timeout=20
-            )
+            r = requests.get(BASE, params={
+                "where": f"TRUE_SITE_ZIP_CODE LIKE '{zc}%' AND DOR_CODE_CUR LIKE '01%' AND YEAR_BUILT < 2000 AND CONDO_FLAG='N'",
+                "outFields": "FOLIO,TRUE_SITE_ADDR,TRUE_SITE_CITY,TRUE_SITE_ZIP_CODE,YEAR_BUILT",
+                "returnGeometry": "true", "outSR": "4326", "f": "json",
+                "resultRecordCount": 500, "resultOffset": offset,
+                "orderByFields": "YEAR_BUILT ASC"
+            }, headers={"User-Agent": "Mozilla/5.0"}, timeout=20)
             feats = r.json().get("features", [])
             for feat in feats:
                 a = feat.get("attributes", {}); geo = feat.get("geometry", {})
@@ -358,8 +386,9 @@ def get_properties(zip_codes, max_count=2000):
                         "lat":        lat, "lng": lng,
                         "year_built": a.get("YEAR_BUILT"),
                         "folio":      a.get("FOLIO"),
+                        "zip":        zc,
                     })
-            log(f"  ZIP {zc}: {len(feats)} propiedades")
+            log(f"  ZIP {zc}: {len(feats)} props (offset={offset})")
             time.sleep(0.8)
         except Exception as e:
             log(f"  ZIP {zc} error: {e}")
@@ -369,7 +398,36 @@ def get_properties(zip_codes, max_count=2000):
         key = f"{p['lat']:.4f},{p['lng']:.4f}"
         if key not in seen:
             seen.add(key); result.append(p)
-    return result[:max_count]
+    return result
+
+
+# ─── ZIP STATS + SCHEDULER ────────────────────────────────────────────────────
+
+def load_zip_stats():
+    if ZIP_STATS_FILE.exists():
+        try: return json.loads(ZIP_STATS_FILE.read_text())
+        except: pass
+    return {}
+
+def save_zip_stats(stats):
+    ZIP_STATS_FILE.write_text(json.dumps(stats, indent=2))
+
+def select_run_zips(zip_stats, n_top=5, n_new=3):
+    """70/30: top-N established ZIPs by lead rate + N new/under-sampled ZIPs.
+    Hurricane mode: always returns HURRICANE_ZIPS unchanged."""
+    if HURRICANE_ZIPS:
+        return HURRICANE_ZIPS
+    established = sorted(
+        [(z, zip_stats[z]["leads"] / max(zip_stats[z]["analyzed"], 1))
+         for z in ALL_ZIPS if z in zip_stats and zip_stats[z].get("analyzed", 0) >= 100],
+        key=lambda x: -x[1]
+    )
+    new_zips = sorted(
+        [z for z in ALL_ZIPS if z not in zip_stats or zip_stats[z].get("analyzed", 0) < 100],
+        key=lambda z: -ALL_ZIPS.get(z, 0)
+    )
+    selected = [z for z, _ in established[:n_top]] + new_zips[:n_new]
+    return selected if selected else new_zips[:8] or list(ALL_ZIPS.keys())[:8]
 
 
 # ─── PROMPTS ──────────────────────────────────────────────────────────────────
@@ -423,8 +481,9 @@ Real tarp → tarp_visible=true: bright or dark blue, navy, or silver emergency 
   tarp_color: "blue" or "silver"
   Score: evidence≠none → 9-10 | evidence=none → 7-8
 
+IMPORTANT: Write a unique description of what you actually observe in THIS image — which section of the roof, estimated coverage area, any edges or texture visible. Do NOT copy the example text below.
 Answer ONLY with valid JSON (no markdown):
-{"is_sfh":true,"tarp_visible":true,"tarp_evidence":"none","tarp_color":"blue","roof_type":"tile","flat_patches":false,"flat_water_stains":false,"missing_tiles":false,"condition":"fair","score":7,"description":"blue material visible on center house roof, draped over left section"}"""
+{"is_sfh":true,"tarp_visible":true,"tarp_evidence":"none","tarp_color":"blue","roof_type":"tile","flat_patches":false,"flat_water_stains":false,"missing_tiles":false,"condition":"fair","score":7,"description":"<describe the actual roof section covered, approximate area, and any visible evidence in THIS image>"}"""
 
 # PRESCREEN_PROMPT: para cuando paso 1 detectó holes/damage (sin azul confirmado)
 PRESCREEN_PROMPT = """Aerial satellite image of a residential property in Miami/Hialeah, Florida.
@@ -510,7 +569,9 @@ def main():
     log(f"=== HPG Overnight Scanner v3 — {datetime.now().strftime('%Y-%m-%d %H:%M')} ===")
     log(f"Principal: {MODELS[0][1]} (detail:low) | Fallbacks: {len(MODELS)-1} modelos OR")
     log(f"Límites duros: MAX_API_CALLS={MAX_API_CALLS} | MAX_SPEND=${MAX_SPEND_USD:.2f}")
-    log(f"Target: {TARGET_LEADS} leads | MAX_ANALYZED: {MAX_ANALYZED} | ZIPs: {len(ZIPS)}")
+    log(f"Target: {TARGET_LEADS} leads | MAX_ANALYZED: {MAX_ANALYZED} | ZIPs totales: {len(ALL_ZIPS)}")
+    if HURRICANE_ZIPS:
+        log(f"🌀 MODO HURACÁN activo — ZIPs: {HURRICANE_ZIPS} | re-análisis desde: {HURRICANE_DATE or 'N/A'}")
     log("="*65)
 
     leads = []
@@ -534,8 +595,11 @@ def main():
     else:
         log(f"Cache folios: {len(folio_cache)} entradas")
 
+    zip_stats = load_zip_stats()
+    run_zips  = select_run_zips(zip_stats)
+    log(f"ZIPs seleccionados para esta corrida: {run_zips}")
     log("Cargando propiedades GIS de Miami-Dade...")
-    props = get_properties(ZIPS)
+    props = get_properties(run_zips, zip_stats)
     log(f"Total propiedades únicas: {len(props)}")
     if props:
         log(f"Rango años: {props[0].get('year_built','?')} – {props[-1].get('year_built','?')}")
@@ -544,6 +608,7 @@ def main():
     analyzed = 0; not_sfh = 0; clean = 0; errors = 0
     sat_fail = 0; ai_fail = 0; detail_fail = 0; step1_clean = 0
     consec_ai_fail = 0; consec_429 = 0; skipped = 0
+    zip_analyzed = {}; zip_leads = {}  # per-ZIP counters for stats update
 
     for prop in props:
         if len(leads) >= TARGET_LEADS:
@@ -551,17 +616,27 @@ def main():
 
         folio = prop.get("folio")
 
-        # Skip si ya cacheado con resultado definitivo (error = se reintenta)
+        # Skip si ya cacheado — con bypass para modo huracán (re-analiza clean pre-HURRICANE_DATE)
         if folio and folio in folio_cache:
-            if folio_cache[folio].get("result") not in ("error", None):
-                skipped += 1
-                continue
+            cached = folio_cache[folio]
+            result = cached.get("result")
+            if result in ("error", None):
+                pass  # siempre reintentar errores
+            elif result == "lead":
+                skipped += 1; continue  # nunca re-analizar leads
+            elif (HURRICANE_DATE and result == "clean"
+                  and cached.get("ts", "")[:10] < HURRICANE_DATE):
+                pass  # re-analizar limpios anteriores al huracán
+            else:
+                skipped += 1; continue
 
         if analyzed >= MAX_ANALYZED:
             log(f"⏹ MAX_ANALYZED {MAX_ANALYZED} alcanzado."); break
 
         elapsed  = (time.time() - start_time) / 3600
         analyzed += 1
+        prop_zip = prop.get("zip", "??")
+        zip_analyzed[prop_zip] = zip_analyzed.get(prop_zip, 0) + 1
         addr = prop["address"]
         yr   = prop.get("year_built", "?")
         logp(f"[{analyzed}|{len(leads)}/{TARGET_LEADS}|{elapsed:.1f}h|${STATS['spend_usd']:.4f}] {addr} yr:{yr}\n")
@@ -749,6 +824,7 @@ def main():
             LIVE_FILE.write_text(json.dumps(leads, indent=2))
             append_lead_to_csv(record)
             cache_folio(folio_cache, folio, "lead", score=final)
+            zip_leads[prop.get("zip", "??")] = zip_leads.get(prop.get("zip", "??"), 0) + 1
         else:
             clean += 1
             cache_folio(folio_cache, folio, "clean", score=final)
@@ -776,6 +852,20 @@ def main():
         for l in sorted(leads, key=lambda x: x.get("score_urgencia", 0), reverse=True)[:10]:
             lona = " 🔴LONA" if l.get("lona_visible") else ""
             log(f"  [{l['score_urgencia']}/10] yr:{l.get('year_built','?')} {l['address']}{lona}")
+
+    # ─── Actualizar zip_stats + avanzar offset GIS para próxima corrida ─────────
+    today = datetime.now().strftime("%Y-%m-%d")
+    for zc in run_zips:
+        if zc not in zip_stats:
+            zip_stats[zc] = {"analyzed": 0, "leads": 0, "gis_offset": 0}
+        zip_stats[zc]["analyzed"]  = zip_stats[zc].get("analyzed", 0) + zip_analyzed.get(zc, 0)
+        zip_stats[zc]["leads"]     = zip_stats[zc].get("leads", 0)    + zip_leads.get(zc, 0)
+        zip_stats[zc]["last_run"]  = today
+        zip_stats[zc]["inventory"] = ALL_ZIPS.get(zc, 0)
+        if not HURRICANE_ZIPS:
+            zip_stats[zc]["gis_offset"] = zip_stats[zc].get("gis_offset", 0) + 500
+    save_zip_stats(zip_stats)
+    log(f"ZIP stats guardados: {len(zip_stats)} ZIPs con historial")
 
     push_csv_to_github()
 
