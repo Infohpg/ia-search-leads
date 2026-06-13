@@ -27,16 +27,24 @@ OUT_PRICE      = 0.60 / 1_000_000   # $ por token salida  (gpt-4o-mini)
 SPEND_ALERT_2X = 0.005              # alerta si 1 sola llamada supera este monto (~2× detail)
 
 # ─── ARCHIVOS ─────────────────────────────────────────────────────────────────
-OUT_DIR          = Path("./scan_results"); OUT_DIR.mkdir(exist_ok=True)
-LIVE_FILE        = OUT_DIR / "overnight_leads.json"
-LOG_FILE         = OUT_DIR / "overnight_log.txt"
-FOLIO_CACHE_FILE = OUT_DIR / "analyzed_folios.json"
-LEADS_CSV_FILE   = OUT_DIR / "leads_para_ventas.csv"
+OUT_DIR           = Path("./scan_results"); OUT_DIR.mkdir(exist_ok=True)
+LIVE_FILE         = OUT_DIR / "overnight_leads.json"
+LOG_FILE          = OUT_DIR / "overnight_log.txt"
+FOLIO_CACHE_FILE  = OUT_DIR / "analyzed_folios.json"
+LEADS_CSV_FILE    = OUT_DIR / "leads_para_ventas.csv"
+RUN_HISTORY_FILE  = OUT_DIR / "run_history.csv"
 
 CSV_FIELDNAMES = [
     "Score", "Lona", "Dirección", "Año construcción", "Lat", "Lng",
     "Link Google Maps", "Tipo techo", "Descripción del daño", "Folio",
+    "Estado",
     "Contactado (sí/no)", "Daño confirmado (sí/no/no visible)", "Notas del setter"
+]
+
+RUN_HISTORY_FIELDNAMES = [
+    "fecha", "zips_usados", "casas_analizadas", "candidatos_detail_high",
+    "leads_nuevos", "leads_totales", "gasto_usd", "sat_fail", "ai_fail",
+    "errores", "status"
 ]
 
 def append_lead_to_csv(record):
@@ -58,6 +66,7 @@ def append_lead_to_csv(record):
         "Tipo techo":                     record.get("tipo_techo", ""),
         "Descripción del daño":           record.get("descripcion", ""),
         "Folio":                          record.get("folio", ""),
+        "Estado":                         record.get("estado", "confirmado"),
         "Contactado (sí/no)":             "",
         "Daño confirmado (sí/no/no visible)": "",
         "Notas del setter":               "",
@@ -194,11 +203,19 @@ def compute_score(binary, detail=None, blue_confirmed=False):
     if binary.get("tarp_visible") and tarp_color in ("blue", "silver"):
         tarp_evidence = (binary.get("tarp_evidence") or "none").lower()
         if tarp_evidence == "none":
-            if blue_confirmed:
-                # Paso 1 ya confirmó azul/plata sobre el techo — confiar en tarp_visible=true
+            # Anti flat-covering: superficie lisa/uniforme sin arrugas → puede ser piscina,
+            # techo pintado, o membrana plana. Cap en 6 aunque blue_confirmed=True.
+            desc = (binary.get("description") or "").lower()
+            flat_signals = ["uniform", "smooth", "flat cover", "may not be a traditional",
+                            "no visible wrinkle", "without wrinkle", "without edge",
+                            "uniformly", "flat surface", "no evidence"]
+            if any(sig in desc for sig in flat_signals):
+                s = min(s, 6)  # ambiguo — requiere verificación en persona
+            elif blue_confirmed:
+                # Paso 1 confirmó azul en techo Y no hay señales de superficie lisa
                 s = max(s, 7)
             else:
-                s = min(s, 6)  # sin confirmación de paso 1, cap para filtrar FP
+                s = min(s, 6)
         else:
             s = max(s, 9)  # evidencia física (wrinkles/sandbags/draped_edges) → lona real
     elif binary.get("tarp_visible") and tarp_color not in ("blue", "silver", "none"):
@@ -269,8 +286,9 @@ def cache_folio(cache, folio, result, score=0, reason=""):
 
 # ─── AI CALL ──────────────────────────────────────────────────────────────────
 
-def ai_call(images, prompt, max_tokens=300):
-    """Intenta GPT-4o-mini (detail:low) primero, luego OR free como fallback.
+def ai_call(images, prompt, max_tokens=300, detail="low"):
+    """Intenta GPT-4o-mini (detail configurable) primero, luego OR free como fallback.
+    detail='high' solo para candidatos azules en paso2 — ~3x costo de imagen pero mejor precisión.
     Retorna (result_dict, model_label).
     result_dict['error'] existe en caso de fallo; 'error'=='hard_limit' = abortar corrida."""
     raw      = ""
@@ -291,7 +309,7 @@ def ai_call(images, prompt, max_tokens=300):
             if provider == "openai":
                 content = [
                     {"type": "image_url",
-                     "image_url": {"url": f"data:image/jpeg;base64,{img}", "detail": "low"}}
+                     "image_url": {"url": f"data:image/jpeg;base64,{img}", "detail": detail}}
                     for img in images if img
                 ]
                 content.append({"type": "text", "text": prompt})
@@ -458,10 +476,11 @@ Respond ONLY with valid JSON (no markdown):
 # FP_CHECK_PROMPT: llamada anti-FP de segundo nivel — solo se ejecuta cuando blue_flag=True y obv_fp=False.
 # Costo: ~$0.000452/prop. Solo pregunta por los dos FPs que STEP1 confunde: fumigación y vecino.
 FP_CHECK_PROMPT = """Aerial satellite image. Blue or silver material was detected on or near the CENTER house.
-Is this image clearly one of these two specific false positives?
+Is this image clearly one of these three specific false positives?
   1. FUMIGATION TENT: the entire house structure is wrapped in a tent — colored stripes (blue + red/yellow) visible on the walls/sides. Normal roof tiles completely hidden.
   2. NEIGHBOR'S TARP/TENT: the blue/silver material is on a building to the LEFT or RIGHT of center, NOT on the building centered in the image.
-Set is_fp=true ONLY for these two specific cases. For everything else (real tarp on center house, pool, painted roof, etc.) set is_fp=false.
+  3. SWIMMING POOL: the blue material is a water-filled oval or rectangular shape clearly in the YARD/BACKYARD at GROUND LEVEL — separated from the roof surface by grass, patio, concrete, or yard space. Pools have clean geometric edges and a uniform water-blue color.
+Set is_fp=true ONLY for these three cases. For anything else set is_fp=false.
 Answer ONLY with valid JSON (no markdown): {"is_fp":false,"reason":"none"}"""
 
 # PRESCREEN_PROMPT_BLUE: paso 1 detectó azul/plateado → exclusión de FPs, default es lona real.
@@ -608,6 +627,9 @@ def main():
     analyzed = 0; not_sfh = 0; clean = 0; errors = 0
     sat_fail = 0; ai_fail = 0; detail_fail = 0; step1_clean = 0
     consec_ai_fail = 0; consec_429 = 0; skipped = 0
+    candidates_hq = 0  # paso2 runs with detail:high (blue candidates)
+    run_status = "OK"
+    leads_at_start = len(leads)
     zip_analyzed = {}; zip_leads = {}  # per-ZIP counters for stats update
 
     for prop in props:
@@ -663,6 +685,7 @@ def main():
         if b1.get("error") == "hard_limit":
             log(f"🛑 LÍMITE DURO: {b1['last_err']}")
             log(f"   Calls={STATS['api_calls']} | Spend=${STATS['spend_usd']:.4f}")
+            run_status = "ABORTED"
             break
 
         if "error" not in b1:
@@ -713,15 +736,21 @@ def main():
                 break
             logp(f"  paso1 fail [{last_err[:40]}] → scoring igual\n")
 
-        # ── PASO 2: scoring completo (~$0.00056) ─────────────────────────────
-        # Elegir variante según qué detectó paso 1 (azul/plateado o dark)
+        # ── PASO 2: scoring completo ──────────────────────────────────────────
+        # Candidatos azules → detail:high (~3× costo imagen, mucho mejor precisión para lona vs piscina)
+        # Candidatos con holes solo → detail:low (sin objeto azul visible)
         _b1_ok = "error" not in b1
-        scoring_prompt = PRESCREEN_PROMPT_BLUE if (_b1_ok and b1.get("blue_or_silver_on_roof")) else PRESCREEN_PROMPT
-        binary, model_used = ai_call([sat], scoring_prompt, max_tokens=300)
+        _blue_candidate = _b1_ok and b1.get("blue_or_silver_on_roof")
+        scoring_prompt = PRESCREEN_PROMPT_BLUE if _blue_candidate else PRESCREEN_PROMPT
+        step2_detail   = "high" if _blue_candidate else "low"
+        if _blue_candidate:
+            candidates_hq += 1
+        binary, model_used = ai_call([sat], scoring_prompt, max_tokens=300, detail=step2_detail)
 
         if binary.get("error") == "hard_limit":
             log(f"🛑 LÍMITE DURO: {binary['last_err']}")
             log(f"   Calls={STATS['api_calls']} | Spend=${STATS['spend_usd']:.4f}")
+            run_status = "ABORTED"
             break
 
         if "error" in binary:
@@ -735,6 +764,7 @@ def main():
             if consec_429 >= 8:
                 log(f"🛑 CIRCUIT BREAKER: {consec_429} × 429 consecutivos — cuota OR agotada.")
                 log(f"   Calls={STATS['api_calls']} | Spend=${STATS['spend_usd']:.4f}")
+                run_status = "QUOTA"
                 break
             continue
 
@@ -867,7 +897,61 @@ def main():
     save_zip_stats(zip_stats)
     log(f"ZIP stats guardados: {len(zip_stats)} ZIPs con historial")
 
+    write_run_history(
+        run_zips=run_zips, analyzed=analyzed,
+        candidates_hq=candidates_hq,
+        leads_new=len(leads) - leads_at_start,
+        leads_total=len(leads),
+        gasto=STATS["spend_usd"], sat_fail=sat_fail, ai_fail=ai_fail,
+        errors=errors, status=run_status
+    )
     push_csv_to_github()
+
+def write_run_history(run_zips, analyzed, candidates_hq, leads_new, leads_total,
+                      gasto, sat_fail, ai_fail, errors, status):
+    """Append one row to local run_history.csv then push to GitHub data/run_history.csv."""
+    fecha = datetime.now().strftime("%Y-%m-%d")
+    row = {
+        "fecha":                 fecha,
+        "zips_usados":           "|".join(run_zips),
+        "casas_analizadas":      analyzed,
+        "candidatos_detail_high": candidates_hq,
+        "leads_nuevos":          leads_new,
+        "leads_totales":         leads_total,
+        "gasto_usd":             f"{gasto:.4f}",
+        "sat_fail":              sat_fail,
+        "ai_fail":               ai_fail,
+        "errores":               errors,
+        "status":                status,
+    }
+    write_header = not RUN_HISTORY_FILE.exists() or RUN_HISTORY_FILE.stat().st_size == 0
+    with open(RUN_HISTORY_FILE, "a", newline="", encoding="utf-8-sig") as f:
+        writer = csv.DictWriter(f, fieldnames=RUN_HISTORY_FIELDNAMES)
+        if write_header:
+            writer.writeheader()
+        writer.writerow(row)
+    log(f"Run history guardado: {row}")
+
+    # Push to GitHub
+    if not GITHUB_TOKEN:
+        log("⚠️ run_history push skipped (no GITHUB_TOKEN)")
+        return
+    try:
+        content = base64.b64encode(RUN_HISTORY_FILE.read_bytes()).decode()
+        api_path = f"https://api.github.com/repos/{GITHUB_REPO}/contents/data/run_history.csv"
+        headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+        existing = requests.get(api_path, headers=headers, timeout=15).json()
+        sha = existing.get("sha", "")
+        payload = {"message": f"auto: run history {fecha} ({status})", "content": content}
+        if sha:
+            payload["sha"] = sha
+        r = requests.put(api_path, headers=headers, json=payload, timeout=30)
+        if r.status_code in (200, 201):
+            log(f"✅ run_history pushed to GitHub")
+        else:
+            log(f"⚠️ run_history push failed: {r.json().get('message','?')[:60]}")
+    except Exception as e:
+        log(f"⚠️ run_history push error: {e}")
 
 def push_csv_to_github():
     """Push leads_para_ventas.csv to data/ in GitHub repo so Apps Script can import it."""
