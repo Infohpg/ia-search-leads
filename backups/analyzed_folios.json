@@ -608,7 +608,9 @@
   "3350320070290": {
     "result": "lead",
     "score": 9,
-    "ts": "2026-06-14 01:22"
+    "ts": "2026-06-14 01:22",
+    "estado_csv": "revisar",
+    "reason": "revisar - verificaci\u00f3n visual: casa tapada por \u00e1rboles, lona dudosa"
   },
   "3050320040420": {
     "result": "clean",
