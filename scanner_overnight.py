@@ -1070,8 +1070,29 @@ def push_csv_to_github(quiet=False):
                     if folio:
                         local_rows[folio] = row
 
-        # 3. Merge: empezar con GitHub, actualizar/agregar locales (local gana en duplicados)
-        merged = {**gh_rows, **local_rows}
+        # 3. Merge inteligente:
+        #    - Leads nuevos (solo en local) → se agregan completos
+        #    - Leads existentes (en ambos) → campos del scanner desde local,
+        #      campos operacionales (Estado, Contactado, Daño, Notas) → GitHub gana
+        #      si tiene valor no vacío (preserva correcciones manuales del equipo)
+        OPERATIONAL_FIELDS = {
+            "Estado", "Contactado (sí/no)",
+            "Daño confirmado (sí/no/no visible)", "Notas del setter"
+        }
+        merged = {}
+        all_folios = set(gh_rows.keys()) | set(local_rows.keys())
+        for folio in all_folios:
+            if folio in local_rows and folio not in gh_rows:
+                merged[folio] = local_rows[folio]
+            elif folio in gh_rows and folio not in local_rows:
+                merged[folio] = gh_rows[folio]
+            else:
+                row = dict(local_rows[folio])
+                for field in OPERATIONAL_FIELDS:
+                    gh_val = (gh_rows[folio].get(field) or "").strip()
+                    if gh_val:
+                        row[field] = gh_val
+                merged[folio] = row
         if not merged:
             if not quiet:
                 log("⚠️ CSV push skipped (sin leads)")
