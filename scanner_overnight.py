@@ -283,6 +283,76 @@ def cache_folio(cache, folio, result, score=0, reason=""):
     cache[folio] = entry
     save_folio_cache(cache)
 
+def restore_folio_cache_from_github():
+    """Startup: si no hay cache local, restaurar desde backups/ en GitHub."""
+    if FOLIO_CACHE_FILE.exists() and FOLIO_CACHE_FILE.stat().st_size > 0:
+        return
+    if not GITHUB_TOKEN:
+        return
+    try:
+        headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+        r = requests.get(
+            f"https://api.github.com/repos/{GITHUB_REPO}/contents/backups/analyzed_folios.json",
+            headers=headers, timeout=15)
+        if r.status_code == 200:
+            content = base64.b64decode(r.json()["content"])
+            FOLIO_CACHE_FILE.write_bytes(content)
+            cache = json.loads(content)
+            log(f"✅ Cache restaurado desde GitHub backup ({len(cache)} folios analizados)")
+        elif r.status_code == 404:
+            log("Cache backup no existe en GitHub todavía — empezando sin cache")
+        else:
+            log(f"⚠️ restore cache HTTP {r.status_code}")
+    except Exception as e:
+        log(f"⚠️ restore cache error: {e}")
+
+def backup_folio_cache_to_github():
+    """Post-run: push analyzed_folios.json a backups/ en GitHub para recuperación ante pérdida de volumen."""
+    if not GITHUB_TOKEN or not FOLIO_CACHE_FILE.exists():
+        log("⚠️ Cache backup skipped (no token o archivo no existe)")
+        return
+    try:
+        cache = json.loads(FOLIO_CACHE_FILE.read_text())
+        content = base64.b64encode(FOLIO_CACHE_FILE.read_bytes()).decode()
+        fecha = datetime.now().strftime("%Y-%m-%d")
+        api_path = f"https://api.github.com/repos/{GITHUB_REPO}/contents/backups/analyzed_folios.json"
+        headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+        existing = requests.get(api_path, headers=headers, timeout=15).json()
+        sha = existing.get("sha", "")
+        payload = {"message": f"backup: folio cache {fecha} ({len(cache)} folios)", "content": content}
+        if sha:
+            payload["sha"] = sha
+        r = requests.put(api_path, headers=headers, json=payload, timeout=30)
+        if r.status_code in (200, 201):
+            log(f"✅ Cache backup pushed to GitHub ({len(cache)} folios analizados)")
+        else:
+            log(f"⚠️ Cache backup push failed: HTTP {r.status_code} — {r.json().get('message','?')[:60]}")
+    except Exception as e:
+        log(f"⚠️ Cache backup error: {e}")
+
+def restore_csv_from_github():
+    """Startup: si no hay CSV local, restaurar desde data/ en GitHub para mantener historial acumulativo."""
+    if LEADS_CSV_FILE.exists() and LEADS_CSV_FILE.stat().st_size > 0:
+        return
+    if not GITHUB_TOKEN:
+        return
+    try:
+        headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+        r = requests.get(
+            f"https://api.github.com/repos/{GITHUB_REPO}/contents/data/leads_para_ventas.csv",
+            headers=headers, timeout=15)
+        if r.status_code == 200:
+            content = base64.b64decode(r.json()["content"])
+            LEADS_CSV_FILE.write_bytes(content)
+            lines = len(content.decode('utf-8-sig', errors='replace').strip().split('\n'))
+            log(f"✅ CSV restaurado desde GitHub ({lines - 1} leads históricos)")
+        elif r.status_code == 404:
+            log("CSV no existe en GitHub todavía — empezando limpio")
+        else:
+            log(f"⚠️ restore CSV HTTP {r.status_code}")
+    except Exception as e:
+        log(f"⚠️ restore CSV error: {e}")
+
 
 # ─── AI CALL ──────────────────────────────────────────────────────────────────
 
@@ -592,6 +662,10 @@ def main():
     if HURRICANE_ZIPS:
         log(f"🌀 MODO HURACÁN activo — ZIPs: {HURRICANE_ZIPS} | re-análisis desde: {HURRICANE_DATE or 'N/A'}")
     log("="*65)
+
+    # Restaurar desde GitHub si el volumen está vacío (protege contra pérdida de datos)
+    restore_folio_cache_from_github()
+    restore_csv_from_github()
 
     leads = []
     if LIVE_FILE.exists():
@@ -914,6 +988,7 @@ def main():
         errors=errors, status=run_status
     )
     push_csv_to_github()
+    backup_folio_cache_to_github()
 
 def write_run_history(run_zips, analyzed, candidates_hq, leads_new, leads_total,
                       gasto, sat_fail, ai_fail, errors, status):
@@ -962,26 +1037,67 @@ def write_run_history(run_zips, analyzed, candidates_hq, leads_new, leads_total,
         log(f"⚠️ run_history push error: {e}")
 
 def push_csv_to_github(quiet=False):
-    """Push leads_para_ventas.csv to data/ in GitHub repo so Apps Script can import it."""
-    if not GITHUB_TOKEN or not LEADS_CSV_FILE.exists():
+    """Push leads_para_ventas.csv a GitHub mergeando con el CSV existente (acumulativo por folio).
+    El CSV en GitHub siempre contiene TODOS los leads históricos — nunca se sobreescribe limpio."""
+    if not GITHUB_TOKEN:
         if not quiet:
-            log("⚠️ GitHub push skipped (no token or CSV missing)")
+            log("⚠️ GitHub push skipped (no GITHUB_TOKEN)")
         return
     try:
-        content = base64.b64encode(LEADS_CSV_FILE.read_bytes()).decode()
+        import io as _io
         api_path = f"https://api.github.com/repos/{GITHUB_REPO}/contents/data/leads_para_ventas.csv"
         headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
-        existing = requests.get(api_path, headers=headers, timeout=15).json()
-        sha = existing.get("sha", "")
-        payload = {"message": f"auto: scanner run {datetime.now().strftime('%Y-%m-%d')}", "content": content}
-        if sha:
-            payload["sha"] = sha
+
+        # 1. Leer CSV existente en GitHub → dict por folio
+        gh_rows = {}
+        gh_sha = ""
+        existing_resp = requests.get(api_path, headers=headers, timeout=15)
+        if existing_resp.status_code == 200:
+            gh_meta = existing_resp.json()
+            gh_sha = gh_meta.get("sha", "")
+            gh_text = base64.b64decode(gh_meta["content"]).decode("utf-8-sig", errors="replace")
+            for row in csv.DictReader(gh_text.splitlines()):
+                folio = (row.get("Folio") or "").strip()
+                if folio:
+                    gh_rows[folio] = row
+
+        # 2. Leer CSV local → dict por folio
+        local_rows = {}
+        if LEADS_CSV_FILE.exists() and LEADS_CSV_FILE.stat().st_size > 0:
+            with open(LEADS_CSV_FILE, newline="", encoding="utf-8-sig") as f:
+                for row in csv.DictReader(f):
+                    folio = (row.get("Folio") or "").strip()
+                    if folio:
+                        local_rows[folio] = row
+
+        # 3. Merge: empezar con GitHub, actualizar/agregar locales (local gana en duplicados)
+        merged = {**gh_rows, **local_rows}
+        if not merged:
+            if not quiet:
+                log("⚠️ CSV push skipped (sin leads)")
+            return
+
+        # 4. Escribir merged de vuelta al archivo local (estado local = estado GitHub)
+        buf = _io.StringIO()
+        writer = csv.DictWriter(buf, fieldnames=CSV_FIELDNAMES, extrasaction="ignore")
+        writer.writeheader()
+        for row in merged.values():
+            writer.writerow(row)
+        merged_bytes = ("﻿" + buf.getvalue()).encode("utf-8")
+        LEADS_CSV_FILE.write_bytes(merged_bytes)
+
+        # 5. Push a GitHub
+        content = base64.b64encode(merged_bytes).decode()
+        fecha = datetime.now().strftime("%Y-%m-%d")
+        payload = {"message": f"auto: scanner run {fecha} ({len(merged)} leads)", "content": content}
+        if gh_sha:
+            payload["sha"] = gh_sha
         r = requests.put(api_path, headers=headers, json=payload, timeout=30)
         if r.status_code in (200, 201):
             if not quiet:
-                log(f"✅ CSV pushed to GitHub ({LEADS_CSV_FILE.stat().st_size} bytes)")
+                log(f"✅ CSV pushed to GitHub ({len(merged)} leads totales, {len(local_rows)} de esta corrida)")
             else:
-                logp(f"  → CSV push incremental OK ({LEADS_CSV_FILE.stat().st_size} bytes)\n")
+                logp(f"  → CSV push incremental OK ({len(merged)} leads totales)\n")
         else:
             log(f"⚠️ GitHub push failed: HTTP {r.status_code} — {r.json().get('message','?')[:60]}")
     except Exception as e:
