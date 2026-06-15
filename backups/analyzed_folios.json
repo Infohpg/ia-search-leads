@@ -608,9 +608,7 @@
   "3350320070290": {
     "result": "lead",
     "score": 9,
-    "ts": "2026-06-14 01:22",
-    "estado_csv": "revisar",
-    "reason": "revisar - verificaci\u00f3n visual: casa tapada por \u00e1rboles, lona dudosa"
+    "ts": "2026-06-14 01:22"
   },
   "3050320040420": {
     "result": "clean",
@@ -5549,6 +5547,2036 @@
     "result": "clean",
     "score": 1,
     "ts": "2026-06-14 02:11",
+    "reason": "paso1_clean"
+  },
+  "3040120100550": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:11",
+    "reason": "paso1_clean"
+  },
+  "3040120100610": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:11",
+    "reason": "paso1_clean"
+  },
+  "3040120090760": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:11",
+    "reason": "paso1_clean"
+  },
+  "3040130210030": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:12",
+    "reason": "paso1_clean"
+  },
+  "3040140120570": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:12",
+    "reason": "paso1_clean"
+  },
+  "3040130191000": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:12",
+    "reason": "paso1_clean"
+  },
+  "3040120120191": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:12",
+    "reason": "paso1_clean"
+  },
+  "3040110191530": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:12",
+    "reason": "paso1_clean"
+  },
+  "3040130100550": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:12",
+    "reason": "paso1_clean"
+  },
+  "3040130161770": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:13",
+    "reason": "paso1_clean"
+  },
+  "0341070170920": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:13",
+    "reason": "paso1_clean"
+  },
+  "0341070170770": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:13",
+    "reason": "paso1_clean"
+  },
+  "0341070170780": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:13",
+    "reason": "paso1_clean"
+  },
+  "0341070170710": {
+    "result": "clean",
+    "score": 4,
+    "ts": "2026-06-15 01:13"
+  },
+  "0940240300670": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:13",
+    "reason": "paso1_clean"
+  },
+  "3040130161920": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:13",
+    "reason": "paso1_clean"
+  },
+  "3040130162340": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:14",
+    "reason": "paso1_clean"
+  },
+  "3040130160450": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:14",
+    "reason": "paso1_clean"
+  },
+  "3040130161520": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:14",
+    "reason": "paso1_clean"
+  },
+  "3040130100070": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:14",
+    "reason": "paso1_clean"
+  },
+  "3040120070680": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:14",
+    "reason": "paso1_clean"
+  },
+  "3040120090030": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:14",
+    "reason": "paso1_clean"
+  },
+  "3040120090240": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:14",
+    "reason": "paso1_clean"
+  },
+  "3040120090440": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:14",
+    "reason": "paso1_clean"
+  },
+  "3040120090632": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:14",
+    "reason": "paso1_clean"
+  },
+  "3040120120591": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:14",
+    "reason": "paso1_clean"
+  },
+  "3040120110450": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:14",
+    "reason": "paso1_clean"
+  },
+  "3040120110460": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:14",
+    "reason": "paso1_clean"
+  },
+  "3040120110962": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:14",
+    "reason": "paso1_clean"
+  },
+  "3040120090941": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:15",
+    "reason": "paso1_clean"
+  },
+  "3040120090980": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:15",
+    "reason": "paso1_clean"
+  },
+  "3040120100110": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:15",
+    "reason": "paso1_clean"
+  },
+  "3040120100240": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:15",
+    "reason": "paso1_clean"
+  },
+  "3040120100245": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:15",
+    "reason": "paso1_clean"
+  },
+  "3040120121000": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:15",
+    "reason": "paso1_clean"
+  },
+  "3040120121120": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:15",
+    "reason": "paso1_clean"
+  },
+  "3040120121171": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:15",
+    "reason": "paso1_clean"
+  },
+  "3040120121200": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:15",
+    "reason": "paso1_clean"
+  },
+  "3040120121230": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:15",
+    "reason": "paso1_clean"
+  },
+  "3040120121240": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:15",
+    "reason": "paso1_clean"
+  },
+  "3040130181800": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:15",
+    "reason": "paso1_clean"
+  },
+  "3040140050070": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:15",
+    "reason": "paso1_clean"
+  },
+  "3040240110100": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:16",
+    "reason": "paso1_clean"
+  },
+  "3040130182070": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:16",
+    "reason": "paso1_clean"
+  },
+  "3040120100530": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:16",
+    "reason": "paso1_clean"
+  },
+  "3040120110730": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:16",
+    "reason": "paso1_clean"
+  },
+  "3040120090340": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:16",
+    "reason": "paso1_clean"
+  },
+  "3040120070360": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:16",
+    "reason": "paso1_clean"
+  },
+  "3040130150020": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:16",
+    "reason": "paso1_clean"
+  },
+  "3040130161540": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:16",
+    "reason": "paso1_clean"
+  },
+  "3040130162060": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:16",
+    "reason": "paso1_clean"
+  },
+  "0940240300690": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:16",
+    "reason": "paso1_clean"
+  },
+  "0341070170720": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:16",
+    "reason": "paso1_clean"
+  },
+  "0341070170730": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:16",
+    "reason": "paso1_clean"
+  },
+  "0341070171100": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:16",
+    "reason": "paso1_clean"
+  },
+  "0940240060540": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:16",
+    "reason": "paso1_clean"
+  },
+  "0940240180070": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:16",
+    "reason": "paso1_clean"
+  },
+  "0940240180091": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:17",
+    "reason": "paso1_clean"
+  },
+  "0940250160040": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:17",
+    "reason": "paso1_clean"
+  },
+  "1540120650010": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:17",
+    "reason": "paso1_clean"
+  },
+  "0940250160140": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:17",
+    "reason": "paso1_clean"
+  },
+  "0940240340150": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:17",
+    "reason": "paso1_clean"
+  },
+  "0341070170890": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:17",
+    "reason": "paso1_clean"
+  },
+  "3040120121050": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:17",
+    "reason": "paso1_clean"
+  },
+  "3040130183910": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:17",
+    "reason": "paso1_clean"
+  },
+  "3040130162520": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:17",
+    "reason": "paso1_clean"
+  },
+  "0940250160150": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:17",
+    "reason": "paso1_clean"
+  },
+  "0940250160160": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:17",
+    "reason": "paso1_clean"
+  },
+  "0940250160170": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:17",
+    "reason": "paso1_clean"
+  },
+  "0940250160180": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:17",
+    "reason": "paso1_clean"
+  },
+  "0940250160050": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:18",
+    "reason": "paso1_clean"
+  },
+  "0940250160060": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:18",
+    "reason": "paso1_clean"
+  },
+  "0940250160070": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:18",
+    "reason": "paso1_clean"
+  },
+  "0940250160080": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:18",
+    "reason": "paso1_clean"
+  },
+  "0940250160090": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:18",
+    "reason": "paso1_clean"
+  },
+  "0940250160100": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:18",
+    "reason": "paso1_clean"
+  },
+  "0940250160110": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:18",
+    "reason": "paso1_clean"
+  },
+  "0940250160120": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:18",
+    "reason": "paso1_clean"
+  },
+  "0940250160130": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:18",
+    "reason": "paso1_clean"
+  },
+  "0940250160010": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:18",
+    "reason": "paso1_clean"
+  },
+  "0940250160020": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:18",
+    "reason": "paso1_clean"
+  },
+  "0940250160030": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:18",
+    "reason": "paso1_clean"
+  },
+  "3040120090130": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:18",
+    "reason": "paso1_clean"
+  },
+  "3040230100120": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:18",
+    "reason": "paso1_clean"
+  },
+  "3040240030180": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:18",
+    "reason": "paso1_clean"
+  },
+  "3040240060490": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:19",
+    "reason": "paso1_clean"
+  },
+  "3040240060522": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:19",
+    "reason": "paso1_clean"
+  },
+  "3040220040260": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:19",
+    "reason": "paso1_clean"
+  },
+  "3040140120720": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:19",
+    "reason": "paso1_clean"
+  },
+  "3040120090060": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:19",
+    "reason": "paso1_clean"
+  },
+  "3040140050370": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:19",
+    "reason": "paso1_clean"
+  },
+  "3040120090070": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:19",
+    "reason": "paso1_clean"
+  },
+  "3040120050600": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:19",
+    "reason": "paso1_clean"
+  },
+  "3040110190860": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:19",
+    "reason": "paso1_clean"
+  },
+  "3040110192290": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:19",
+    "reason": "paso1_clean"
+  },
+  "3040110203110": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:19",
+    "reason": "paso1_clean"
+  },
+  "3040110202830": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:19",
+    "reason": "paso1_clean"
+  },
+  "3040120000010": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:19",
+    "reason": "paso1_clean"
+  },
+  "3040120121040": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:19",
+    "reason": "paso1_clean"
+  },
+  "3040130060240": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:19",
+    "reason": "paso1_clean"
+  },
+  "3040120110440": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:19",
+    "reason": "paso1_clean"
+  },
+  "3040120110691": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:20",
+    "reason": "paso1_clean"
+  },
+  "3040120120290": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:20",
+    "reason": "paso1_clean"
+  },
+  "3040120090932": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:20",
+    "reason": "paso1_clean"
+  },
+  "3040120090870": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:20",
+    "reason": "paso1_clean"
+  },
+  "3040130162430": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:20",
+    "reason": "paso1_clean"
+  },
+  "3040130161240": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:20",
+    "reason": "paso1_clean"
+  },
+  "3040130100530": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:20",
+    "reason": "paso1_clean"
+  },
+  "3040240110090": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:20",
+    "reason": "paso1_clean"
+  },
+  "3040240220240": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:20",
+    "reason": "paso1_clean"
+  },
+  "3040240110130": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:20",
+    "reason": "paso1_clean"
+  },
+  "3040130064760": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:20",
+    "reason": "paso1_clean"
+  },
+  "3040120100540": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:20",
+    "reason": "paso1_clean"
+  },
+  "3040240000850": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:20",
+    "reason": "paso1_clean"
+  },
+  "0940250400130": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:20",
+    "reason": "paso1_clean"
+  },
+  "1540120071180": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:20",
+    "reason": "paso1_clean"
+  },
+  "3040120120220": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:21",
+    "reason": "paso1_clean"
+  },
+  "3040120100412": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:21",
+    "reason": "paso1_clean"
+  },
+  "3040120090350": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:21",
+    "reason": "paso1_clean"
+  },
+  "3040120051210": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:21",
+    "reason": "paso1_clean"
+  },
+  "3040240000960": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:21",
+    "reason": "paso1_clean"
+  },
+  "3040140120600": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:21",
+    "reason": "paso1_clean"
+  },
+  "3040120090190": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:21",
+    "reason": "paso1_clean"
+  },
+  "3040120090080": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:21",
+    "reason": "paso1_clean"
+  },
+  "3040120090140": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:21",
+    "reason": "paso1_clean"
+  },
+  "3040120090120": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:21",
+    "reason": "paso1_clean"
+  },
+  "3040110202410": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:21",
+    "reason": "paso1_clean"
+  },
+  "3040120090710": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:21",
+    "reason": "paso1_clean"
+  },
+  "3040120110150": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:21",
+    "reason": "paso1_clean"
+  },
+  "3040130060610": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:21",
+    "reason": "paso1_clean"
+  },
+  "3040130067550": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:21",
+    "reason": "paso1_clean"
+  },
+  "3040240110050": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:21",
+    "reason": "paso1_clean"
+  },
+  "3040130100540": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:21",
+    "reason": "paso1_clean"
+  },
+  "3040130110290": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:22",
+    "reason": "paso1_clean"
+  },
+  "3040130170540": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:22",
+    "reason": "paso1_clean"
+  },
+  "3040120100631": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:22",
+    "reason": "paso1_clean"
+  },
+  "3040140120610": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:22",
+    "reason": "paso1_clean"
+  },
+  "3040140120650": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:22",
+    "reason": "paso1_clean"
+  },
+  "3040140120679": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:22",
+    "reason": "paso1_clean"
+  },
+  "3040140120460": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:22",
+    "reason": "paso1_clean"
+  },
+  "3040140120470": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:22",
+    "reason": "paso1_clean"
+  },
+  "3040240050200": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:22",
+    "reason": "paso1_clean"
+  },
+  "3040140120420": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:22",
+    "reason": "paso1_clean"
+  },
+  "3040140120430": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:22",
+    "reason": "paso1_clean"
+  },
+  "3040140120010": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:22",
+    "reason": "paso1_clean"
+  },
+  "3040140120660": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:22",
+    "reason": "paso1_clean"
+  },
+  "3040130161020": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:22",
+    "reason": "paso1_clean"
+  },
+  "3040130190700": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:22",
+    "reason": "paso1_clean"
+  },
+  "3040130190710": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:22",
+    "reason": "paso1_clean"
+  },
+  "3040140050080": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:22",
+    "reason": "paso1_clean"
+  },
+  "3040120100061": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:23",
+    "reason": "paso1_clean"
+  },
+  "3040120100081": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:23",
+    "reason": "paso1_clean"
+  },
+  "3040120110940": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:23",
+    "reason": "paso1_clean"
+  },
+  "3040110190440": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:23",
+    "reason": "paso1_clean"
+  },
+  "3040120050460": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:23",
+    "reason": "paso1_clean"
+  },
+  "3040130067670": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:23",
+    "reason": "paso1_clean"
+  },
+  "3040240120470": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:23",
+    "reason": "paso1_clean"
+  },
+  "3040130066040": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:23",
+    "reason": "paso1_clean"
+  },
+  "3040130064020": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:23",
+    "reason": "paso1_clean"
+  },
+  "3040130162690": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:23",
+    "reason": "paso1_clean"
+  },
+  "3040120050520": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:23",
+    "reason": "paso1_clean"
+  },
+  "3040120051050": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:23",
+    "reason": "paso1_clean"
+  },
+  "3040120090260": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:23",
+    "reason": "paso1_clean"
+  },
+  "3040120120030": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:23",
+    "reason": "paso1_clean"
+  },
+  "3040120110900": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:23",
+    "reason": "paso1_clean"
+  },
+  "3040120110190": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:23",
+    "reason": "paso1_clean"
+  },
+  "3040120090780": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:23",
+    "reason": "paso1_clean"
+  },
+  "3040120090790": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:24",
+    "reason": "paso1_clean"
+  },
+  "3040120120980": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:24",
+    "reason": "paso1_clean"
+  },
+  "1540120071090": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:24",
+    "reason": "paso1_clean"
+  },
+  "1540120000261": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:24",
+    "reason": "paso1_clean"
+  },
+  "3040130190690": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:24",
+    "reason": "paso1_clean"
+  },
+  "3040130190570": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:24",
+    "reason": "paso1_clean"
+  },
+  "3040130190580": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:24",
+    "reason": "paso1_clean"
+  },
+  "3040130190590": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:24",
+    "reason": "paso1_clean"
+  },
+  "3040130190610": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:24",
+    "reason": "paso1_clean"
+  },
+  "3040130190620": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:24",
+    "reason": "paso1_clean"
+  },
+  "3040130190630": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:24",
+    "reason": "paso1_clean"
+  },
+  "3040130190640": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:24",
+    "reason": "paso1_clean"
+  },
+  "3040130190650": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:24",
+    "reason": "paso1_clean"
+  },
+  "3040130190660": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:24",
+    "reason": "paso1_clean"
+  },
+  "3040130191820": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:24",
+    "reason": "paso1_clean"
+  },
+  "3040130191880": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:24",
+    "reason": "paso1_clean"
+  },
+  "3040130192320": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:24",
+    "reason": "paso1_clean"
+  },
+  "3040130064210": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:24",
+    "reason": "paso1_clean"
+  },
+  "3040230120611": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:25",
+    "reason": "paso1_clean"
+  },
+  "0940240350650": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:25",
+    "reason": "paso1_clean"
+  },
+  "0940240290050": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:25",
+    "reason": "paso1_clean"
+  },
+  "3040120121010": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:25",
+    "reason": "paso1_clean"
+  },
+  "3040120090770": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:25",
+    "reason": "paso1_clean"
+  },
+  "3040120110280": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:25",
+    "reason": "paso1_clean"
+  },
+  "3040120120181": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:25",
+    "reason": "paso1_clean"
+  },
+  "3040120120050": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:25",
+    "reason": "paso1_clean"
+  },
+  "3040120120240": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:25",
+    "reason": "paso1_clean"
+  },
+  "3040120120360": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:25",
+    "reason": "paso1_clean"
+  },
+  "3040120051040": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:25",
+    "reason": "paso1_clean"
+  },
+  "3040120050170": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:25",
+    "reason": "paso1_clean"
+  },
+  "3040110190200": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:25",
+    "reason": "paso1_clean"
+  },
+  "3040130160320": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:25",
+    "reason": "paso1_clean"
+  },
+  "3040130110320": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:25",
+    "reason": "paso1_clean"
+  },
+  "3040130110260": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:25",
+    "reason": "paso1_clean"
+  },
+  "3040130110390": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:25",
+    "reason": "paso1_clean"
+  },
+  "3040130110400": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:26",
+    "reason": "paso1_clean"
+  },
+  "3040130110660": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:26",
+    "reason": "paso1_clean"
+  },
+  "3040130065890": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:26",
+    "reason": "paso1_clean"
+  },
+  "3040130065340": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:26",
+    "reason": "paso1_clean"
+  },
+  "3040130067570": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:26",
+    "reason": "paso1_clean"
+  },
+  "3040130066630": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:26",
+    "reason": "paso1_clean"
+  },
+  "3040130066800": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:26",
+    "reason": "paso1_clean"
+  },
+  "3040130062121": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:26",
+    "reason": "paso1_clean"
+  },
+  "3040130062320": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:26",
+    "reason": "paso1_clean"
+  },
+  "3040130063040": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:26",
+    "reason": "paso1_clean"
+  },
+  "3040130063050": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:26",
+    "reason": "paso1_clean"
+  },
+  "3040130063070": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:26",
+    "reason": "paso1_clean"
+  },
+  "3040130063130": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:26",
+    "reason": "paso1_clean"
+  },
+  "3040130110690": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:26",
+    "reason": "paso1_clean"
+  },
+  "3040130110610": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:26",
+    "reason": "paso1_clean"
+  },
+  "3040130110630": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:26",
+    "reason": "paso1_clean"
+  },
+  "3040130110650": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:26",
+    "reason": "paso1_clean"
+  },
+  "3040130110370": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:27",
+    "reason": "paso1_clean"
+  },
+  "3040130110380": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:27",
+    "reason": "paso1_clean"
+  },
+  "3040130110330": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:27",
+    "reason": "paso1_clean"
+  },
+  "3040130110220": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:27",
+    "reason": "paso1_clean"
+  },
+  "3040130100090": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:27",
+    "reason": "paso1_clean"
+  },
+  "3040130160440": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:27",
+    "reason": "paso1_clean"
+  },
+  "3040130160130": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:27",
+    "reason": "paso1_clean"
+  },
+  "3040110190700": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:27",
+    "reason": "paso1_clean"
+  },
+  "3040110202630": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:27",
+    "reason": "paso1_clean"
+  },
+  "3040120050630": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:27",
+    "reason": "paso1_clean"
+  },
+  "3040120050660": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:27",
+    "reason": "paso1_clean"
+  },
+  "3040120090210": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:27",
+    "reason": "paso1_clean"
+  },
+  "3040120120510": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:27",
+    "reason": "paso1_clean"
+  },
+  "3040120120520": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:27",
+    "reason": "paso1_clean"
+  },
+  "3040120120620": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:27",
+    "reason": "paso1_clean"
+  },
+  "3040120120720": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:27",
+    "reason": "paso1_clean"
+  },
+  "3040120120740": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:27",
+    "reason": "paso1_clean"
+  },
+  "3040120120750": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:27",
+    "reason": "paso1_clean"
+  },
+  "3040120120760": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:28",
+    "reason": "paso1_clean"
+  },
+  "3040120120820": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:28",
+    "reason": "paso1_clean"
+  },
+  "3040120120950": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:28",
+    "reason": "paso1_clean"
+  },
+  "3040120120100": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:28",
+    "reason": "paso1_clean"
+  },
+  "3040120110681": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:28",
+    "reason": "paso1_clean"
+  },
+  "3040120110410": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:28",
+    "reason": "paso1_clean"
+  },
+  "3040120090890": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:28",
+    "reason": "paso1_clean"
+  },
+  "3040120090650": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:28",
+    "reason": "paso1_clean"
+  },
+  "3040120090660": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:28",
+    "reason": "paso1_clean"
+  },
+  "3040120090670": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:28",
+    "reason": "paso1_clean"
+  },
+  "3040120100470": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:28",
+    "reason": "paso1_clean"
+  },
+  "3040120121020": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:28",
+    "reason": "paso1_clean"
+  },
+  "3040120120990": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:28",
+    "reason": "paso1_clean"
+  },
+  "3040120121130": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:28",
+    "reason": "paso1_clean"
+  },
+  "3040120121140": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:28",
+    "reason": "paso1_clean"
+  },
+  "3040120121160": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:28",
+    "reason": "paso1_clean"
+  },
+  "3040120121250": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:28",
+    "reason": "paso1_clean"
+  },
+  "3040120121220": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:29",
+    "reason": "paso1_clean"
+  },
+  "3040120121320": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:29",
+    "reason": "paso1_clean"
+  },
+  "3040120121380": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:29",
+    "reason": "paso1_clean"
+  },
+  "3040120121350": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:29",
+    "reason": "paso1_clean"
+  },
+  "3040120121360": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:29",
+    "reason": "paso1_clean"
+  },
+  "3040130020190": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:29",
+    "reason": "paso1_clean"
+  },
+  "0940240060560": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:29",
+    "reason": "paso1_clean"
+  },
+  "0940240060290": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:29",
+    "reason": "paso1_clean"
+  },
+  "0940240060450": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:29",
+    "reason": "paso1_clean"
+  },
+  "1540120071160": {
+    "result": "clean",
+    "score": 4,
+    "ts": "2026-06-15 01:29"
+  },
+  "1540120650030": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:29",
+    "reason": "paso1_clean"
+  },
+  "3040110190091": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:29",
+    "reason": "paso1_clean"
+  },
+  "3040230120620": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:29",
+    "reason": "paso1_clean"
+  },
+  "3040230120340": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:29",
+    "reason": "paso1_clean"
+  },
+  "3040240000920": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:29",
+    "reason": "paso1_clean"
+  },
+  "3040240000580": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:30",
+    "reason": "paso1_clean"
+  },
+  "3040240060260": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:30",
+    "reason": "paso1_clean"
+  },
+  "3040240060110": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:30",
+    "reason": "paso1_clean"
+  },
+  "3040240060120": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:30",
+    "reason": "paso1_clean"
+  },
+  "3040240060130": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:30",
+    "reason": "paso1_clean"
+  },
+  "3040240060190": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:30",
+    "reason": "paso1_clean"
+  },
+  "3040240060200": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:30",
+    "reason": "paso1_clean"
+  },
+  "3040240050220": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:30",
+    "reason": "paso1_clean"
+  },
+  "3040240050230": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:30",
+    "reason": "paso1_clean"
+  },
+  "3040240050250": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:30",
+    "reason": "paso1_clean"
+  },
+  "3040240050260": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:30",
+    "reason": "paso1_clean"
+  },
+  "3040240060280": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:30",
+    "reason": "paso1_clean"
+  },
+  "3040240060300": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:30",
+    "reason": "paso1_clean"
+  },
+  "3040240050280": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:30",
+    "reason": "paso1_clean"
+  },
+  "3040240050290": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:30",
+    "reason": "paso1_clean"
+  },
+  "3040240050300": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:30",
+    "reason": "paso1_clean"
+  },
+  "3040240050310": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:30",
+    "reason": "paso1_clean"
+  },
+  "3040240050330": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:31",
+    "reason": "paso1_clean"
+  },
+  "3040240050340": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:31",
+    "reason": "paso1_clean"
+  },
+  "3040240050350": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:31",
+    "reason": "paso1_clean"
+  },
+  "3040240050360": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:31",
+    "reason": "paso1_clean"
+  },
+  "3040240050370": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:31",
+    "reason": "paso1_clean"
+  },
+  "3040240050380": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:31",
+    "reason": "paso1_clean"
+  },
+  "3040240050390": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:31",
+    "reason": "paso1_clean"
+  },
+  "3040240050400": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:31",
+    "reason": "paso1_clean"
+  },
+  "3040240050410": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:31",
+    "reason": "paso1_clean"
+  },
+  "3040240050420": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:31",
+    "reason": "paso1_clean"
+  },
+  "3040240050430": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:31",
+    "reason": "paso1_clean"
+  },
+  "3040240050440": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:31",
+    "reason": "paso1_clean"
+  },
+  "3040240050450": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:31",
+    "reason": "paso1_clean"
+  },
+  "3040240050460": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:31",
+    "reason": "paso1_clean"
+  },
+  "3040240050470": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:31",
+    "reason": "paso1_clean"
+  },
+  "3040240060090": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:31",
+    "reason": "paso1_clean"
+  },
+  "3040220100091": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:31",
+    "reason": "paso1_clean"
+  },
+  "3040120090230": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:31",
+    "reason": "paso1_clean"
+  },
+  "3040140120520": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:32",
+    "reason": "paso1_clean"
+  },
+  "3040140120530": {
+    "result": "clean",
+    "score": 4,
+    "ts": "2026-06-15 01:32"
+  },
+  "3040130192740": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:32",
+    "reason": "paso1_clean"
+  },
+  "3040130191360": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:32",
+    "reason": "paso1_clean"
+  },
+  "3040130191370": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:32",
+    "reason": "paso1_clean"
+  },
+  "3040130191380": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:32",
+    "reason": "paso1_clean"
+  },
+  "3040130183551": {
+    "result": "clean",
+    "score": 4,
+    "ts": "2026-06-15 01:32"
+  },
+  "3040130182670": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:32",
+    "reason": "paso1_clean"
+  },
+  "3040140000050": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:32",
+    "reason": "paso1_clean"
+  },
+  "3040140052450": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:32",
+    "reason": "paso1_clean"
+  },
+  "3040140052460": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:32",
+    "reason": "paso1_clean"
+  },
+  "3040240140030": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:32",
+    "reason": "paso1_clean"
+  },
+  "3040240150360": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:33",
+    "reason": "paso1_clean"
+  },
+  "3040240190030": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:33",
+    "reason": "paso1_clean"
+  },
+  "3040240450030": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:33",
+    "reason": "paso1_clean"
+  },
+  "3040130182590": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:33",
+    "reason": "paso1_clean"
+  },
+  "3040130182600": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:33",
+    "reason": "paso1_clean"
+  },
+  "3040130182690": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:33",
+    "reason": "paso1_clean"
+  },
+  "3040140120620": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:33",
+    "reason": "paso1_clean"
+  },
+  "3040140120640": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:33",
+    "reason": "paso1_clean"
+  },
+  "3040120070930": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:33",
+    "reason": "paso1_clean"
+  },
+  "3040240060100": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:33",
+    "reason": "paso1_clean"
+  },
+  "3040120121270": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:33",
+    "reason": "paso1_clean"
+  },
+  "3040120110065": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:33",
+    "reason": "paso1_clean"
+  },
+  "3040120110130": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:33",
+    "reason": "paso1_clean"
+  },
+  "3040120110400": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:33",
+    "reason": "paso1_clean"
+  },
+  "3040120110290": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:33",
+    "reason": "paso1_clean"
+  },
+  "3040120110180": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:33",
+    "reason": "paso1_clean"
+  },
+  "3040120120110": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:33",
+    "reason": "paso1_clean"
+  },
+  "3040120120960": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:33",
+    "reason": "paso1_clean"
+  },
+  "3040120120540": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:34",
+    "reason": "paso1_clean"
+  },
+  "3040120120550": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:34",
+    "reason": "paso1_clean"
+  },
+  "3040120120270": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:34",
+    "reason": "paso1_clean"
+  },
+  "3040120090220": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:34",
+    "reason": "paso1_clean"
+  },
+  "3040130161200": {
+    "result": "clean",
+    "score": 1,
+    "ts": "2026-06-15 01:34",
     "reason": "paso1_clean"
   }
 }
