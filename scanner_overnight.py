@@ -66,7 +66,7 @@ def append_lead_to_csv(record):
         "Tipo techo":                     record.get("tipo_techo", ""),
         "Descripción del daño":           record.get("descripcion", ""),
         "Folio":                          record.get("folio", ""),
-        "Estado":                         record.get("estado", "confirmado"),
+        "Estado":                         record.get("estado", "revisar"),
         "Contactado (sí/no)":             "",
         "Daño confirmado (sí/no/no visible)": "",
         "Notas del setter":               "",
