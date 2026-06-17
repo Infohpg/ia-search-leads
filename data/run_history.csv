@@ -1,3 +1,4 @@
 ﻿fecha,zips_usados,casas_analizadas,candidatos_detail_high,leads_nuevos,leads_totales,gasto_usd,sat_fail,ai_fail,errores,status
 2026-06-16,33157|33165|33177,330,3,1,1,0.1741,0,0,0,OK
 2026-06-16,33177|33157|33165|33155|33186,330,2,0,1,0.1698,0,0,0,OK
+2026-06-17,33177|33155|33165|33157|33186|33176|33175,330,6,0,1,0.1864,0,0,0,OK
