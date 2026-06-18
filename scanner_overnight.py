@@ -90,6 +90,12 @@ DRY_RUN      = os.environ.get("DRY_RUN", "0").strip() == "1"  # no push a GitHub
 # Ejemplo: SCANNER_ZIPS=33010,33013,33135
 SCANNER_ZIPS = [z.strip() for z in os.environ.get("SCANNER_ZIPS", "").split(",") if z.strip()]
 
+# ─── TOPES DIARIOS (activos cuando se setean via env var; 9999 = sin límite) ──
+# Activar en producción: MAX_HOUSES_DAY=4500 HOT_LEADS_TARGET=200 TOTAL_LEADS_CAP=300
+MAX_HOUSES_DAY   = int(os.environ.get("MAX_HOUSES_DAY",   "9999"))
+HOT_LEADS_TARGET = int(os.environ.get("HOT_LEADS_TARGET", "9999"))
+TOTAL_LEADS_CAP  = int(os.environ.get("TOTAL_LEADS_CAP",  "9999"))
+
 # ─── MODELOS ──────────────────────────────────────────────────────────────────
 # STEP1 (filtro masivo, barato): siempre gpt-4o-mini + OR fallbacks. No configurable.
 MODELS = [
@@ -537,7 +543,7 @@ def get_properties(zip_codes, zip_stats=None):
                 "outFields": "FOLIO,TRUE_SITE_ADDR,TRUE_SITE_CITY,TRUE_SITE_ZIP_CODE,YEAR_BUILT",
                 "returnGeometry": "true", "outSR": "4326", "f": "json",
                 "resultRecordCount": 500, "resultOffset": offset,
-                "orderByFields": "YEAR_BUILT ASC"
+                "orderByFields": "FOLIO ASC"
             }, headers={"User-Agent": "Mozilla/5.0"}, timeout=20)
             feats = r.json().get("features", [])
             for feat in feats:
@@ -557,7 +563,7 @@ def get_properties(zip_codes, zip_stats=None):
             log(f"  ZIP {zc} error: {e}")
 
     seen = set(); result = []
-    for p in sorted(all_props, key=lambda x: x.get("year_built") or 9999):
+    for p in all_props:
         key = f"{p['lat']:.4f},{p['lng']:.4f}"
         if key not in seen:
             seen.add(key); result.append(p)
@@ -642,84 +648,77 @@ Is this image clearly one of these three specific false positives?
 Set is_fp=true ONLY for these three cases. For anything else set is_fp=false.
 Answer ONLY with valid JSON (no markdown): {"is_fp":false,"reason":"none"}"""
 
-# PRESCREEN_PROMPT_BLUE: paso 1 detectó azul/plateado → exclusión de FPs, default es lona real.
-PRESCREEN_PROMPT_BLUE = """Aerial satellite image. Pre-scan detected blue or silver material in this image — possibly on the CENTER house roof. Your task: identify if it is a real tarp/covering ON the CENTER house roof, or a false positive.
+# PRESCREEN_PROMPT_BLUE: paso 1 detectó azul/plateado → 3 niveles de calificación.
+# Usar make_step2_prompt(year_built, is_blue=True) para inyectar el año al runtime.
+PRESCREEN_PROMPT_BLUE = """{YEAR_CONTEXT}Aerial satellite image. Pre-scan detected blue or silver material on/near the CENTER house roof.
 
-STEP 1 — LOCATION CHECK (do this first):
-If the blue/silver material is on a NEIGHBOR's roof (not the center house): tarp_visible=false, score=2
-If it is a ROUND pool shape in the YARD (not on roof): tarp_visible=false, score=2
+Score 1-10 and classify into one of three tiers:
 
-STEP 2 — IF MATERIAL IS ON THE CENTER HOUSE ROOF, classify it:
-False positive → tarp_visible=false:
-- Painted metal roof: uniform color matching entire roof shape with clean straight seams (score 2-3)
-- Termite tent: multi-color striped (blue+red+yellow) covering house AND walls (score 2-3)
+▸ SCORE 8-10 — CALIENTE (real emergency tarp confirmed):
+  - Blue/navy/silver material DRAPED over the roof surface of the CENTER house
+  - Score 9-10: physical tarp evidence visible (wrinkles/folds, sandbag weights at edges, material hanging over roofline)
+  - Score 8: blue/silver clearly on roof but no strong physical tarp evidence yet
 
-Real tarp → tarp_visible=true: bright or dark blue, navy, or silver emergency covering draped on roof surface
-  tarp_evidence: "wrinkles"=folds visible | "sandbags"=dots/weights at edges | "draped_edges"=hanging over edge | "none"=visible but texture unclear
-  tarp_color: "blue" or "silver"
-  Score: evidence≠none → 9-10 | evidence=none → 7-8
+▸ SCORE 5-7 — POSIBLE (ambiguous, worth a visit):
+  - Bluish/grayish discoloration on roof that could be aged tarp material but lacks clear physical evidence
+  - OR tile roof with genuinely missing/broken tiles AND the blue detection was noise
+  - Score 5: uncertain. Score 6-7: convincing deterioration or partial tarp visibility.
 
-IMPORTANT: Write a unique description of what you actually observe in THIS image — which section of the roof, estimated coverage area, any edges or texture visible. Do NOT copy the example text below.
+▸ SCORE 1-4 — LIMPIO (false positive, not worth visiting):
+  - Pool: round/oval blue water shape in the YARD at ground level (not on roof) → score 2
+  - Painted metal roof: uniform color, clean straight seams covering entire roof → score 3
+  - Fumigation tent: multi-color stripes (blue+red+yellow) wrapping house walls AND roof → score 2
+  - Neighbor: material clearly on adjacent building, NOT the centered house → score 2
+  - Solar panels, skylights, AC units — no damage evidence → score 3-4
+
+AGE FACTOR (apply only when borderline 4 or 5):
+  House built before 1970 + borderline score 4-5 → add 1 point (older homes more likely to need roof work)
+  House built after 2000 + borderline score 4-5 → keep at 4
+
 Answer ONLY with valid JSON (no markdown):
-{"is_residential":true,"tarp_visible":true,"tarp_evidence":"none","tarp_color":"blue","roof_type":"tile","flat_patches":false,"flat_water_stains":false,"missing_tiles":false,"condition":"fair","score":7,"description":"<describe the actual roof section covered, approximate area, and any visible evidence in THIS image>"}"""
+{"is_residential":true,"tarp_visible":false,"tarp_evidence":"none","tarp_color":"none","roof_type":"tile","flat_patches":false,"flat_water_stains":false,"missing_tiles":false,"condition":"fair","score":3,"description":"<describe what you see: material location, coverage, physical evidence or reason for FP classification>"}"""
 
-# PRESCREEN_PROMPT: para cuando paso 1 detectó holes/damage (sin azul confirmado)
-PRESCREEN_PROMPT = """Aerial satellite image of a residential property in Miami/Hialeah, Florida.
-Pre-scan flagged possible structural damage (holes or missing sections) on the CENTER house roof. Ignore neighboring properties.
+# PRESCREEN_PROMPT: para holes/deterioration candidates → 3 niveles de calificación.
+# Usar make_step2_prompt(year_built, is_blue=False) para inyectar el año al runtime.
+PRESCREEN_PROMPT = """{YEAR_CONTEXT}Aerial satellite image. Pre-scan flagged possible roof damage (holes, missing sections, or deterioration) on the CENTER house in Miami/Hialeah, Florida.
 
-══════════════════════════════════════════
-STEP 1 — IDENTIFY ROOF TYPE
-══════════════════════════════════════════
-flat   = smooth surface, no texture, usually black/gray/white
-tile   = textured rows of barrel or flat tiles, usually terracotta/orange/brown
-shingle= overlapping flat pieces, dark gray/black textured surface
-metal  = shiny, ribbed or standing seam panels
+Score 1-10 and classify into one of three tiers:
 
-══════════════════════════════════════════
-STEP 2 — EVALUATE BY TYPE (different rules for each)
-══════════════════════════════════════════
+▸ SCORE 8-10 — CALIENTE (clear structural damage, needs roof work now):
+  - Tile roof: CLEARLY VISIBLE GAPS — black holes/voids where tiles are missing (actual gaps, not color variation)
+  - Flat roof: exposed substrate (boards/wood visible through holes in membrane), or multiple large patches >20% coverage
+  - Any roof: blue/silver tarp draped over any section (see tarp rules below)
+  - Shingle roof: large sections with missing shingles exposing underlayment
+  - Score 8: serious damage obvious. Score 9-10: tarp confirmed OR extensive structural failure.
 
-── FLAT ROOFS ──
-Normal (score 2-3): Uniform black, gray, or white membrane. Even if dark — this is standard material (EPDM/TPO/modified bitumen). Do NOT flag.
-Score 5-6: Visible patches of a clearly DIFFERENT color stuck on the membrane (spot repairs done with different material). OR obvious water stain rings (brown/rust discoloration in irregular circular patterns).
-Score 7-8: Multiple large patches covering >20% of the roof. OR exposed substrate (gray boards/wood visible through holes in membrane). OR heavily deteriorated with multiple issues.
-Score 9-10: BLUE or SILVER tarp draped over any portion of the flat roof (must pass ALL tarp checks below).
+▸ SCORE 5-7 — POSIBLE (genuinely deteriorated, worth a visit — NOT just dirty):
+  - Tile roof: irregular tile pattern with some broken/displaced tiles visible, hard to confirm from aerial
+  - Flat roof: patches of clearly DIFFERENT color material (spot repairs), OR brown/rust water stain rings
+  - Shingle roof: lighter patches suggesting granule loss in sections
+  - CRITICAL DISTINCTION — score 5-7 ONLY for REAL DETERIORATION:
+    ✓ YES (5-7): multiple irregular dark spots + patchwork repairs visible, granule loss pattern, uneven sections
+    ✗ NOT (5-7): uniform dark streaks from rain/algae on sound tiles, normal fading, uniform discoloration
+    A healthy roof that is merely dirty or weathered = score 3-4, NOT a posible.
+  - Score 5: possible but uncertain. Score 6-7: multiple visible signs of deterioration.
 
-── TILE ROOFS (barrel/flat clay/concrete tile) ──
-Normal (score 2-4): Uniform terracotta, orange, brown, or faded tile. Even faded or weathered — this is normal.
-Score 5-6: Irregular tile pattern suggesting some broken tiles. Hard to confirm from aerial — flag for street view.
-Score 7-8: CLEARLY VISIBLE GAPS (black holes/voids) in the tile field where tiles are missing. Must be actual gaps, not just color variation.
-Score 9-10: BLUE or SILVER tarp visible (must pass ALL tarp checks below). OR large section with many missing tiles exposing dark underlayment.
+▸ SCORE 1-4 — LIMPIO (normal roof, do not flag):
+  - Flat roof: uniform black/gray/white membrane — this is standard material even if dark
+  - Tile roof: uniform terracotta/orange/brown/faded — normal weathering even if discolored
+  - Shingle roof: uniform dark surface, no missing sections
+  - Score 1-3: clearly normal. Score 4: minor signs, likely just age/weather.
 
-── SHINGLE ROOFS ──
-Normal (score 2-3): Uniform dark surface.
-Score 6-7: Missing shingle sections visible as lighter patches.
-Score 8+: Tarp (must pass ALL tarp checks below), or large exposed areas.
+── TARP RULE (any roof type) ──
+tarp_visible=true if blue or silver material is ON the CENTER house roof.
+Exceptions (NOT a tarp): round pool in yard at ground level | fumigation tent (striped, covers walls)
+tarp_evidence: "wrinkles" | "sandbags" | "draped_edges" | "none"
+Tarp with evidence → score 9-10. Tarp without evidence → score 8.
 
-── ANY ROOF TYPE — TARP RULE ──
-A tarp is a TEMPORARY emergency covering placed over a damaged roof section.
+AGE FACTOR (apply only when borderline 4 or 5):
+  House built before 1970 + borderline score 4-5 → add 1 point
+  House built after 2000 + borderline score 4-5 → keep at 4
 
-DETECTION — set tarp_visible=true if you see bright blue or silver-gray material ON THE ROOF of
-the central house. When in doubt, flag it (street view will confirm).
-Only skip tarp_visible for these two unambiguous cases:
-  • A ROUND/circular blue shape in the yard or beside the house = swimming pool, NOT roof damage
-  • A multi-color STRIPED (blue+red+yellow) tent wrapping the whole house AND walls = fumigation tent
-
-EVIDENCE — look for physical clues that it is a real draped tarp vs a painted surface:
-  "wrinkles"    — creases, folds, rippling or uneven surface visible
-  "sandbags"    — dots or linear strips along edges (weights holding the tarp)
-  "draped_edges"— material hangs over the roof edge or ridge
-  "none"        — surface looks flat/smooth with no physical tarp clues (may be painted roof)
-
-SCORING impact:
-  tarp_visible=true + evidence ≠ "none"  →  score 9-10 (real tarp confirmed)
-  tarp_visible=true + evidence = "none"  →  score capped at 6 (ambiguous, needs street view)
-  Asphalt membrane patches on flat roofs → use flat-roof rules, max score 6, tarp_visible=false
-
-══════════════════════════════════════════
 Answer ONLY with valid JSON (no markdown):
-{"is_residential":true,"tarp_visible":false,"tarp_evidence":"none","tarp_color":"none|blue|silver","roof_type":"flat|tile|shingle|metal|unknown","flat_patches":false,"flat_water_stains":false,"missing_tiles":false,"condition":"new|good|fair|poor|critical","score":3,"description":"roof type first, then specific damage or why it looks normal"}
-══════════════════════════════════════════"""
+{"is_residential":true,"tarp_visible":false,"tarp_evidence":"none","tarp_color":"none","roof_type":"flat|tile|shingle|metal|unknown","flat_patches":false,"flat_water_stains":false,"missing_tiles":false,"condition":"new|good|fair|poor|critical","score":3,"description":"roof type first, then specific damage observed or reason it looks normal"}"""
 
 DETAIL_PROMPT = """Florida roofing inspector with aerial satellite + street view of a Miami property.
 The aerial flagged this property. Confirm or deny from street level. Apply the correct rules by roof type.
@@ -737,7 +736,16 @@ TILE ROOF from street view:
 Answer ONLY with valid JSON:
 {"roof_type_confirmed":"flat|tile|shingle|metal","tarp_confirmed":false,"tarp_color":"none|blue|silver","damage_visible_from_street":false,"damage_description":"what specific damage you see or 'no damage visible'","condition_street":"good|fair|poor","score_final":3}
 
-score_final: 2-3=looks normal, 4-5=minor wear, 6-7=visible damage, 8=serious damage, 9-10=tarp confirmed"""
+score_final: 1-4=looks normal/minor wear only, 5-7=genuine deterioration visible from street, 8-9=serious damage, 10=tarp/structural failure confirmed
+NOTE: score 5-7 requires REAL signs of deterioration from street — not just old age or dirt stains."""
+
+
+def make_step2_prompt(year_built, is_blue=False):
+    """Build STEP2 prompt with year_built context injected. Used for age factor scoring."""
+    yr = year_built if year_built and str(year_built) not in ("?", "None", "") else None
+    yr_ctx = f"Property year built: {yr}.\n" if yr else ""
+    template = PRESCREEN_PROMPT_BLUE if is_blue else PRESCREEN_PROMPT
+    return template.replace("{YEAR_CONTEXT}", yr_ctx)
 
 
 # ─── MAIN ─────────────────────────────────────────────────────────────────────
@@ -784,7 +792,9 @@ def main():
     props = get_properties(run_zips, zip_stats)
     log(f"Total propiedades únicas: {len(props)}")
     if props:
-        log(f"Rango años: {props[0].get('year_built','?')} – {props[-1].get('year_built','?')}")
+        years = [p.get("year_built") for p in props if p.get("year_built")]
+        if years:
+            log(f"Rango años: {min(years)} – {max(years)} (mezcla natural — orden por FOLIO)")
     log("")
 
     analyzed = 0; not_sfh = 0; clean = 0; errors = 0
@@ -797,9 +807,33 @@ def main():
     leads_since_push = 0           # push every 5 leads or every 120s
     zip_analyzed = {}; zip_leads = {}  # per-ZIP counters for stats update
 
+    # ── STEP1 funnel counters ──
+    step1_blue_count  = 0   # blue/tarp flag
+    step1_holes_count = 0   # holes/missing flag
+    step1_detr_count  = 0   # deterioration flag
+    step1_to_step2    = 0   # any flag → passed to STEP2
+
+    # ── 3-tier result counters ──
+    tier_hot      = 0   # score 8-10 (caliente)
+    tier_posible  = 0   # score 5-7 (posible)
+
+    # ── Daily cap tracking ──
+    cap_posibles = False   # True once (hot+posible) >= TOTAL_LEADS_CAP
+    posibles = []          # in-memory list of posible leads (5-7)
+
     for prop in props:
+        # ── Checks de parada ──
+        if tier_hot >= HOT_LEADS_TARGET:
+            log(f"✅ META CALIENTES: {tier_hot} leads 8-10 alcanzados."); break
+        if analyzed >= MAX_HOUSES_DAY:
+            log(f"⏹ MAX_HOUSES_DAY={MAX_HOUSES_DAY} alcanzado."); break
         if len(leads) >= TARGET_LEADS:
             log(f"✅ Target {TARGET_LEADS} alcanzado!"); break
+
+        # Actualizar cap_posibles si total (calientes+posibles) llegó al tope
+        if not cap_posibles and (tier_hot + tier_posible) >= TOTAL_LEADS_CAP:
+            cap_posibles = True
+            log(f"⚠️ CAP TOTAL ({TOTAL_LEADS_CAP}) alcanzado — solo guardando calientes 8-10 de ahora en adelante.")
 
         folio = prop.get("folio")
 
@@ -860,6 +894,9 @@ def main():
             holes_flag = b1.get("visible_holes_or_missing_sections", False)
             obv_fp     = b1.get("obvious_false_positive", False)
             detr_flag  = b1.get("visible_deterioration", False)
+            if blue_flag:  step1_blue_count  += 1
+            if holes_flag: step1_holes_count += 1
+            if detr_flag:  step1_detr_count  += 1
             flag_str   = "+".join(filter(None, [
                 "tarp"   if blue_flag  else "",
                 "holes"  if holes_flag else "",
@@ -905,13 +942,14 @@ def main():
 
         # ── PASO 2: scoring completo ──────────────────────────────────────────
         # Candidatos azules → detail:high (~3× costo imagen, mucho mejor precisión para lona vs piscina)
-        # Candidatos con holes solo → detail:low (sin objeto azul visible)
+        # Candidatos con holes/detr solo → detail:low (sin objeto azul visible)
         _b1_ok = "error" not in b1
         _blue_candidate = _b1_ok and b1.get("blue_or_silver_on_roof")
-        scoring_prompt = PRESCREEN_PROMPT_BLUE if _blue_candidate else PRESCREEN_PROMPT
+        scoring_prompt = make_step2_prompt(yr, is_blue=_blue_candidate)
         step2_detail   = "high" if _blue_candidate else "low"
         if _blue_candidate:
             candidates_hq += 1
+        step1_to_step2 += 1
         binary, model_used = ai_call([sat], scoring_prompt, max_tokens=300, detail=step2_detail,
                                      model_list=MODELS_SMART)
 
@@ -989,18 +1027,28 @@ def main():
                     log(f"⚠️ ALERTA GASTO: llamada detail costó ${STATS['last_call_spend']:.5f} (umbral ${SPEND_ALERT_2X})")
 
         final      = compute_score(binary, detail, blue_confirmed=blue_flag)
-        flag       = "🔥LEAD" if final >= 7 else "  meh"
         desc_main   = binary.get("description", "")
         desc_detail = detail.get("damage_description", "")
         full_desc   = (desc_main + " " + desc_detail).strip()
 
-        logp(f"  sv({sv_date})→ score:{final}/10 {flag} {tarp} | {_spend_tag()}\n")
+        # ── Clasificación 3 niveles ──
+        if final >= 8:
+            tier_label = "🔥CALIENTE"
+        elif final >= 5:
+            tier_label = "🟡POSIBLE"
+        else:
+            tier_label = "  limpio"
+
+        logp(f"  sv({sv_date})→ score:{final}/10 {tier_label} {tarp} | {_spend_tag()}\n")
         logp(f"  → {full_desc[:110]}\n")
 
-        if final >= 7:
-            logp(f"  ✅ LEAD #{len(leads)+1}\n")
+        if final >= 8:
+            # CALIENTE — confirmado, va a hoja Leads
+            tier_hot += 1
+            logp(f"  ✅ CALIENTE #{tier_hot}\n")
+            estado = "confirmado"
             record = {
-                "rank":           len(leads) + 1,
+                "rank":           tier_hot,
                 "address":        addr,
                 "lat":            lat, "lng": lng,
                 "year_built":     yr,
@@ -1015,6 +1063,7 @@ def main():
                 "broken_tiles":   binary.get("broken_tiles", False),
                 "missing_tiles":  binary.get("missing_tiles", False),
                 "descripcion":    full_desc,
+                "estado":         estado,
                 "oportunidad_roofing": True,
                 "analysis_ts":    datetime.now().strftime("%Y-%m-%d %H:%M"),
                 "model":          model_used,
@@ -1024,12 +1073,42 @@ def main():
             append_lead_to_csv(record)
             cache_folio(folio_cache, folio, "lead", score=final)
             zip_leads[prop.get("zip", "??")] = zip_leads.get(prop.get("zip", "??"), 0) + 1
-            # Incremental push: cada 5 leads nuevos o cada 2 minutos (rate-limit friendly)
             leads_since_push += 1
             if not DRY_RUN and (leads_since_push >= 5 or (time.time() - last_push_ts) >= 120):
                 push_csv_to_github(quiet=True)
                 last_push_ts = time.time()
                 leads_since_push = 0
+
+        elif final >= 5 and not cap_posibles:
+            # POSIBLE — revisar, va a hoja Posibles/Revisar
+            tier_posible += 1
+            logp(f"  🟡 POSIBLE #{tier_posible}\n")
+            record = {
+                "rank":           tier_posible,
+                "address":        addr,
+                "lat":            lat, "lng": lng,
+                "year_built":     yr,
+                "folio":          folio,
+                "sv_date":        sv_date,
+                "gmaps":          f"https://maps.google.com/?q={lat},{lng}",
+                "score_urgencia": final,
+                "lona_visible":   binary.get("tarp_visible", False) or detail.get("tarp_confirmed", False),
+                "lona_color":     binary.get("tarp_color", "none"),
+                "tipo_techo":     binary.get("roof_type", "unknown"),
+                "condicion":      binary.get("condition", "?"),
+                "broken_tiles":   binary.get("broken_tiles", False),
+                "missing_tiles":  binary.get("missing_tiles", False),
+                "descripcion":    full_desc,
+                "estado":         "revisar",
+                "oportunidad_roofing": True,
+                "analysis_ts":    datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "model":          model_used,
+            }
+            posibles.append(record)
+            append_lead_to_csv(record)
+            cache_folio(folio_cache, folio, "lead", score=final)
+            zip_leads[prop.get("zip", "??")] = zip_leads.get(prop.get("zip", "??"), 0) + 1
+
         else:
             clean += 1
             cache_folio(folio_cache, folio, "clean", score=final)
@@ -1037,42 +1116,65 @@ def main():
         time.sleep(4)
 
     # ─── Reporte final ────────────────────────────────────────────────────────
-    elapsed_m = (time.time() - start_time) / 60
+    elapsed_m  = (time.time() - start_time) / 60
+    maps_cost  = STATS["sat_calls"] * MAPS_SAT_PRICE + STATS["sv_calls"] * MAPS_SV_PRICE
+    new_hot    = leads[leads_at_start:]
+    new_total  = tier_hot - leads_at_start if tier_hot > leads_at_start else tier_hot
     log(f"\n{'='*65}")
     log(f"FINALIZADO — {elapsed_m:.0f} min | {analyzed} analizadas | {skipped} de cache")
-    log(f"  No SFH: {not_sfh} | Techo ok: {clean} | Errores totales: {errors}")
-    log(f"  ├─ Paso1 clean: {step1_clean} ({step1_clean/max(analyzed,1)*100:.1f}%) — sin scoring completo")
-    log(f"  ├─ Sat fail:    {sat_fail} ({sat_fail/max(analyzed,1)*100:.1f}%)")
-    log(f"  ├─ AI fail:     {ai_fail}  ({ai_fail/max(analyzed,1)*100:.1f}%)")
-    log(f"  └─ Detail fail: {detail_fail}")
-    log(f"  LEADS encontrados: {len(leads)}")
-    log(f"  Con lona: {sum(1 for l in leads if l.get('lona_visible'))}")
-    maps_cost  = STATS["sat_calls"] * MAPS_SAT_PRICE + STATS["sv_calls"] * MAPS_SV_PRICE
-    total_cost = STATS["spend_usd"] + maps_cost
-    log(f"  ── GASTO ──────────────────────────────────────────────")
-    log(f"  AI (OpenAI/Claude):  ${STATS['spend_usd']:.4f} | {STATS['api_calls']} calls")
-    log(f"  Maps API:  ${maps_cost:.4f} ({STATS['sat_calls']} satellite × $0.002 + {STATS['sv_calls']} streetview × $0.007)")
-    log(f"  TOTAL ESTIMADO:      ${total_cost:.4f}")
-    log(f"  Costo/prop:          ${total_cost/max(analyzed,1):.5f} promedio")
+    log(f"  No SFH: {not_sfh} | Errores totales: {errors}")
+    log(f"  ── STEP1 FUNNEL ────────────────────────────────────────")
+    log(f"  ├─ tarp/blue flag:       {step1_blue_count} ({step1_blue_count/max(analyzed,1)*100:.1f}%)")
+    log(f"  ├─ holes/missing flag:   {step1_holes_count} ({step1_holes_count/max(analyzed,1)*100:.1f}%)")
+    log(f"  ├─ deterioration flag:   {step1_detr_count} ({step1_detr_count/max(analyzed,1)*100:.1f}%)")
+    log(f"  ├─ any flag → STEP2:     {step1_to_step2} ({step1_to_step2/max(analyzed,1)*100:.1f}%)")
+    log(f"  └─ paso1 clean (skip):   {step1_clean} ({step1_clean/max(analyzed,1)*100:.1f}%)")
+    log(f"  ── STEP2 RESULTADOS ─────────────────────────────────────")
+    log(f"  ├─ 🔥 CALIENTE (8-10):  {tier_hot} ({tier_hot/max(analyzed,1)*100:.2f}%)")
+    log(f"  ├─ 🟡 POSIBLE  (5-7):   {tier_posible} ({tier_posible/max(analyzed,1)*100:.2f}%)")
+    log(f"  ├─ limpio (<5):          {clean}")
+    log(f"  ├─ not residential:      {not_sfh}")
+    log(f"  ├─ sat fail:             {sat_fail}")
+    log(f"  ├─ AI fail:              {ai_fail}")
+    log(f"  └─ detail fail:          {detail_fail}")
+    log(f"  ── GASTO IA (Maps se paga aparte) ───────────────────────")
+    log(f"  AI spend:  ${STATS['spend_usd']:.4f} | {STATS['api_calls']} calls")
+    log(f"  Maps est.: ${maps_cost:.4f} ({STATS['sat_calls']} sat × $0.002 + {STATS['sv_calls']} sv × $0.007)")
+    log(f"  Total est: ${STATS['spend_usd'] + maps_cost:.4f} | ${(STATS['spend_usd'] + maps_cost)/max(analyzed,1):.5f}/prop")
     dry_tag = " [DRY RUN — sin push a GitHub]" if DRY_RUN else ""
     log(f"\nResultados: {LIVE_FILE}{dry_tag}")
-    new_leads = leads[leads_at_start:]
-    if new_leads:
-        log(f"TOP LEADS (nuevos en esta corrida — {len(new_leads)} total):")
-        for l in sorted(new_leads, key=lambda x: x.get("score_urgencia", 0), reverse=True)[:10]:
+    if new_hot:
+        log(f"TOP CALIENTES (nuevos — {len(new_hot)} total):")
+        for l in sorted(new_hot, key=lambda x: x.get("score_urgencia", 0), reverse=True)[:10]:
             lona = " 🔴LONA" if l.get("lona_visible") else ""
             log(f"  [{l['score_urgencia']}/10] yr:{l.get('year_built','?')} {l['address']}{lona}")
-    if DRY_RUN and new_leads:
-        rate = len(new_leads) / max(analyzed - skipped, 1) * 100
+    if DRY_RUN:
+        netas = analyzed
+        rate_hot = tier_hot / max(netas, 1) * 100
+        rate_pos = tier_posible / max(netas, 1) * 100
         log(f"\n{'='*65}")
-        log(f"DRY RUN SUMMARY")
-        log(f"  Casas analizadas (netas):   {analyzed - skipped}")
-        log(f"  Leads encontrados:          {len(new_leads)}")
-        log(f"  TASA:                       {rate:.2f}%")
-        log(f"  Gasto total:                ${total_cost:.4f}")
-        log(f"  Muestra de leads (verif visual):")
-        for l in sorted(new_leads, key=lambda x: x.get("score_urgencia", 0), reverse=True)[:10]:
-            log(f"    [{l['score_urgencia']}/10] {l['address']}  →  {l.get('gmaps','')}")
+        log(f"DRY RUN SUMMARY — {netas} casas analizadas")
+        log(f"  ─── EMBUDO STEP1 ───────────────────────────────────")
+        log(f"  tarp flag:   {step1_blue_count:4d} ({step1_blue_count/max(netas,1)*100:.1f}%)")
+        log(f"  holes flag:  {step1_holes_count:4d} ({step1_holes_count/max(netas,1)*100:.1f}%)")
+        log(f"  detr flag:   {step1_detr_count:4d} ({step1_detr_count/max(netas,1)*100:.1f}%)")
+        log(f"  → a STEP2:   {step1_to_step2:4d} ({step1_to_step2/max(netas,1)*100:.1f}%)")
+        log(f"  ─── RESULTADOS ──────────────────────────────────────")
+        log(f"  🔥 CALIENTES (8-10): {tier_hot:4d} → {rate_hot:.2f}% de las casas")
+        log(f"  🟡 POSIBLES  (5-7):  {tier_posible:4d} → {rate_pos:.2f}% de las casas")
+        log(f"  ─── GASTO IA (Maps aparte) ──────────────────────────")
+        log(f"  AI: ${STATS['spend_usd']:.4f} | {STATS['api_calls']} calls | ${STATS['spend_usd']/max(netas,1):.5f}/casa")
+        if new_hot:
+            log(f"  ─── CALIENTES (verificación visual) ─────────────────")
+            for l in sorted(new_hot, key=lambda x: x.get("score_urgencia", 0), reverse=True)[:10]:
+                lona = " 🔴LONA" if l.get("lona_visible") else ""
+                log(f"    [{l['score_urgencia']}/10] yr:{l.get('year_built','?')} {l['address']}{lona}")
+                log(f"      {l.get('gmaps','')}")
+        if posibles:
+            log(f"  ─── POSIBLES (muestra — {len(posibles)} total) ──────────────")
+            for l in sorted(posibles, key=lambda x: x.get("score_urgencia", 0), reverse=True)[:5]:
+                log(f"    [{l['score_urgencia']}/10] yr:{l.get('year_built','?')} {l['address']}")
+                log(f"      {l.get('gmaps','')}")
 
     # ─── Actualizar zip_stats + avanzar offset GIS para próxima corrida ─────────
     today = datetime.now().strftime("%Y-%m-%d")
@@ -1093,6 +1195,9 @@ def main():
         candidates_hq=candidates_hq,
         leads_new=len(leads) - leads_at_start,
         leads_total=len(leads),
+        posibles_new=tier_posible,
+        tier_hot=tier_hot, tier_posible=tier_posible,
+        step1_to_step2=step1_to_step2,
         gasto=STATS["spend_usd"], sat_fail=sat_fail, ai_fail=ai_fail,
         errors=errors, status=run_status
     )
@@ -1103,7 +1208,8 @@ def main():
         log("DRY RUN: push a GitHub omitido.")
 
 def write_run_history(run_zips, analyzed, candidates_hq, leads_new, leads_total,
-                      gasto, sat_fail, ai_fail, errors, status):
+                      posibles_new=0, tier_hot=0, tier_posible=0, step1_to_step2=0,
+                      gasto=0, sat_fail=0, ai_fail=0, errors=0, status="OK"):
     """Append one row to local run_history.csv then push to GitHub data/run_history.csv."""
     fecha = datetime.now().strftime("%Y-%m-%d")
     row = {
