@@ -11,11 +11,12 @@ from datetime import datetime
 from pathlib import Path
 
 # ─── CREDENCIALES — leer de env vars (requerido en producción/Docker) ─────────
-OPENAI_KEY  = os.environ.get("OPENAI_API_KEY", "")
-OR_KEY      = os.environ.get("OPENROUTER_API_KEY", "")
-MAPS_KEY    = os.environ.get("GOOGLE_MAPS_API_KEY", "")
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
-GITHUB_REPO  = os.environ.get("GITHUB_REPO", "Infohpg/ia-search-leads")
+OPENAI_KEY    = os.environ.get("OPENAI_API_KEY", "")
+ANTHROPIC_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+OR_KEY        = os.environ.get("OPENROUTER_API_KEY", "")
+MAPS_KEY      = os.environ.get("GOOGLE_MAPS_API_KEY", "")
+GITHUB_TOKEN  = os.environ.get("GITHUB_TOKEN", "")
+GITHUB_REPO   = os.environ.get("GITHUB_REPO", "Infohpg/ia-search-leads")
 if not OPENAI_KEY or not MAPS_KEY:
     raise RuntimeError("OPENAI_API_KEY y GOOGLE_MAPS_API_KEY son requeridas (vars de entorno)")
 
@@ -25,6 +26,10 @@ MAX_SPEND_USD  = 3.00
 IN_PRICE       = 0.15 / 1_000_000   # $ por token entrada (gpt-4o-mini)
 OUT_PRICE      = 0.60 / 1_000_000   # $ por token salida  (gpt-4o-mini)
 SPEND_ALERT_2X = 0.005              # alerta si 1 sola llamada supera este monto (~2× detail)
+
+# Precios Google Maps API (para estimado de costo total)
+MAPS_SAT_PRICE = 0.002   # $2/1000 Static Maps
+MAPS_SV_PRICE  = 0.007   # $7/1000 Street View Static
 
 # ─── ARCHIVOS ─────────────────────────────────────────────────────────────────
 OUT_DIR           = Path("./scan_results"); OUT_DIR.mkdir(exist_ok=True)
@@ -80,14 +85,27 @@ def append_lead_to_csv(record):
 # ─── PARÁMETROS DE CORRIDA ────────────────────────────────────────────────────
 TARGET_LEADS = 9999
 MAX_ANALYZED = int(os.environ.get("SCANNER_MAX", "330"))  # override con SCANNER_MAX env var (testing)
+DRY_RUN      = os.environ.get("DRY_RUN", "0").strip() == "1"  # no push a GitHub ni webhooks
 
-# ─── MODELOS — (provider, model_id) en orden de prioridad ────────────────────
+# ─── MODELOS ──────────────────────────────────────────────────────────────────
+# STEP1 (filtro masivo, barato): siempre gpt-4o-mini + OR fallbacks. No configurable.
 MODELS = [
     ("openai",     "gpt-4o-mini"),
     ("openrouter", "nvidia/nemotron-nano-12b-v2-vl:free"),
     ("openrouter", "google/gemma-4-31b-it:free"),
     ("openrouter", "google/gemma-4-26b-a4b-it:free"),
     # MUERTOS: moonshotai/kimi-k2.6:free (404), google/gemma-4-27b-it:free (400)
+]
+
+# STEP2 + STEP3 (capa inteligente): configurable vía env var.
+# Para cambiar: SMART_MODEL=claude-haiku-4-5-20251001 SMART_PROVIDER=claude
+# Por defecto: gpt-4o-mini (igual que STEP1 hasta tener la key de Claude)
+SMART_PROVIDER  = os.environ.get("SMART_PROVIDER",  "openai")
+SMART_MODEL_ID  = os.environ.get("SMART_MODEL",     "gpt-4o-mini")
+MODELS_SMART = [
+    (SMART_PROVIDER, SMART_MODEL_ID),
+    ("openrouter",   "nvidia/nemotron-nano-12b-v2-vl:free"),
+    ("openrouter",   "google/gemma-4-31b-it:free"),
 ]
 
 # ─── MODO HURACÁN ─────────────────────────────────────────────────────────────
@@ -124,7 +142,8 @@ ALL_ZIPS = {
 ZIP_STATS_FILE = OUT_DIR / "zip_stats.json"
 
 # ─── ESTADÍSTICAS GLOBALES ────────────────────────────────────────────────────
-STATS = {"api_calls": 0, "spend_usd": 0.0, "last_call_spend": 0.0}
+STATS = {"api_calls": 0, "spend_usd": 0.0, "last_call_spend": 0.0,
+         "sat_calls": 0, "sv_calls": 0}
 
 def _track_spend(usage):
     """Registra gasto de una respuesta OpenAI. Retorna costo de esa llamada."""
@@ -245,14 +264,20 @@ def get_img(url, params):
     return None
 
 def satellite(lat, lng, zoom=21):
-    return get_img("https://maps.googleapis.com/maps/api/staticmap",
+    img = get_img("https://maps.googleapis.com/maps/api/staticmap",
         {"center": f"{lat},{lng}", "zoom": zoom, "size": "512x512",
          "maptype": "satellite", "key": MAPS_KEY})
+    if img:
+        STATS["sat_calls"] += 1
+    return img
 
 def streetview(lat, lng, heading=0, fov=70):
-    return get_img("https://maps.googleapis.com/maps/api/streetview",
+    img = get_img("https://maps.googleapis.com/maps/api/streetview",
         {"size": "512x512", "location": f"{lat},{lng}", "heading": heading,
          "pitch": 10, "fov": fov, "key": MAPS_KEY, "return_error_code": "true"})
+    if img:
+        STATS["sv_calls"] += 1
+    return img
 
 def sv_available(lat, lng):
     try:
@@ -356,15 +381,17 @@ def restore_csv_from_github():
 
 # ─── AI CALL ──────────────────────────────────────────────────────────────────
 
-def ai_call(images, prompt, max_tokens=300, detail="low"):
-    """Intenta GPT-4o-mini (detail configurable) primero, luego OR free como fallback.
-    detail='high' solo para candidatos azules en paso2 — ~3x costo de imagen pero mejor precisión.
+def ai_call(images, prompt, max_tokens=300, detail="low", model_list=None):
+    """Llama al modelo de IA con las imágenes y el prompt dado.
+    model_list: None = usar MODELS (STEP1 barato), MODELS_SMART = capa inteligente.
+    detail='high' solo para candidatos azules en paso2 — ~3x costo de imagen.
     Retorna (result_dict, model_label).
     result_dict['error'] existe en caso de fallo; 'error'=='hard_limit' = abortar corrida."""
     raw      = ""
     last_err = "unknown"
+    models   = model_list if model_list is not None else MODELS
 
-    for provider, model in MODELS:
+    for provider, model in models:
         for attempt in range(2):
 
             # ── Límites duros — verificar ANTES de hacer la llamada ──
@@ -375,8 +402,28 @@ def ai_call(images, prompt, max_tokens=300, detail="low"):
             STATS["api_calls"]       += 1
             STATS["last_call_spend"]  = 0.0
 
-            # ── Construir content según provider ──
-            if provider == "openai":
+            # ── Construir request según provider ──
+            if provider == "claude":
+                # Anthropic Messages API
+                if not ANTHROPIC_KEY:
+                    last_err = "claude/no_key"; break
+                content = []
+                for img in images:
+                    if img:
+                        content.append({
+                            "type": "image",
+                            "source": {"type": "base64", "media_type": "image/jpeg", "data": img}
+                        })
+                content.append({"type": "text", "text": prompt})
+                url     = "https://api.anthropic.com/v1/messages"
+                headers = {"x-api-key": ANTHROPIC_KEY,
+                           "anthropic-version": "2023-06-01",
+                           "content-type": "application/json"}
+                body    = {"model": model,
+                           "max_tokens": max_tokens,
+                           "temperature": 0,
+                           "messages": [{"role": "user", "content": content}]}
+            elif provider == "openai":
                 content = [
                     {"type": "image_url",
                      "image_url": {"url": f"data:image/jpeg;base64,{img}", "detail": detail}}
@@ -386,7 +433,11 @@ def ai_call(images, prompt, max_tokens=300, detail="low"):
                 url     = "https://api.openai.com/v1/chat/completions"
                 headers = {"Authorization": f"Bearer {OPENAI_KEY}",
                            "Content-Type": "application/json"}
+                body    = {"model": model,
+                           "messages": [{"role": "user", "content": content}],
+                           "max_tokens": max_tokens, "temperature": 0}
             else:
+                # OpenRouter (cualquier otro provider)
                 content = [
                     {"type": "image_url",
                      "image_url": {"url": f"data:image/jpeg;base64,{img}"}}
@@ -396,20 +447,36 @@ def ai_call(images, prompt, max_tokens=300, detail="low"):
                 url     = "https://openrouter.ai/api/v1/chat/completions"
                 headers = {"Authorization": f"Bearer {OR_KEY}",
                            "Content-Type": "application/json", "X-Title": "HPG-Night"}
-
-            body = {"model": model,
-                    "messages": [{"role": "user", "content": content}],
-                    "max_tokens": max_tokens, "temperature": 0}
+                body    = {"model": model,
+                           "messages": [{"role": "user", "content": content}],
+                           "max_tokens": max_tokens, "temperature": 0}
 
             try:
                 r = requests.post(url, headers=headers, json=body, timeout=55)
                 d = r.json()
 
-                # Registrar gasto (solo OpenAI tiene costo real)
+                # Registrar gasto
                 if provider == "openai":
                     _track_spend(d.get("usage"))
+                elif provider == "claude":
+                    usage = d.get("usage", {})
+                    # Claude Haiku 4.5: $0.80/1M input, $4.00/1M output
+                    IN_PRICE_C  = 0.80  / 1_000_000
+                    OUT_PRICE_C = 4.00  / 1_000_000
+                    cost = (usage.get("input_tokens", 0) * IN_PRICE_C +
+                            usage.get("output_tokens", 0) * OUT_PRICE_C)
+                    STATS["spend_usd"]      += cost
+                    STATS["last_call_spend"] = cost
 
-                if "error" in d:
+                # Detectar errores según provider
+                if provider == "claude":
+                    if d.get("type") == "error":
+                        err_msg  = d.get("error", {}).get("message", "")[:100]
+                        err_type = d.get("error", {}).get("type", "")
+                        last_err = f"claude/{model} type:{err_type} | {err_msg}"
+                        wait = 30 if "rate" in err_type else 6
+                        time.sleep(wait if attempt == 0 else wait * 2); continue
+                elif "error" in d:
                     err_code = d["error"].get("code")
                     err_msg  = str(d["error"].get("message", ""))[:100]
                     last_err = f"{provider}/{model.split('/')[-1]} code:{err_code} | {err_msg}"
@@ -417,7 +484,12 @@ def ai_call(images, prompt, max_tokens=300, detail="low"):
                     time.sleep(wait)
                     continue
 
-                raw = (d.get("choices") or [{}])[0].get("message", {}).get("content", "").strip()
+                # Extraer texto según provider
+                if provider == "claude":
+                    raw = (d.get("content") or [{}])[0].get("text", "").strip()
+                else:
+                    raw = (d.get("choices") or [{}])[0].get("message", {}).get("content", "").strip()
+
                 if not raw:
                     last_err = f"{provider}/{model.split('/')[-1]} empty_response"
                     time.sleep(5); continue
@@ -458,7 +530,7 @@ def get_properties(zip_codes, zip_stats=None):
         offset = 0 if HURRICANE_ZIPS else zip_stats.get(zc, {}).get("gis_offset", 0)
         try:
             r = requests.get(BASE, params={
-                "where": f"TRUE_SITE_ZIP_CODE LIKE '{zc}%' AND DOR_CODE_CUR LIKE '01%' AND YEAR_BUILT < 2000 AND CONDO_FLAG='N'",
+                "where": f"TRUE_SITE_ZIP_CODE LIKE '{zc}%' AND (DOR_CODE_CUR LIKE '01%' OR DOR_CODE_CUR LIKE '02%' OR DOR_CODE_CUR LIKE '03%') AND CONDO_FLAG='N'",
                 "outFields": "FOLIO,TRUE_SITE_ADDR,TRUE_SITE_CITY,TRUE_SITE_ZIP_CODE,YEAR_BUILT",
                 "returnGeometry": "true", "outSR": "4326", "f": "json",
                 "resultRecordCount": 500, "resultOffset": offset,
@@ -525,23 +597,34 @@ def select_run_zips(zip_stats, n_top=5, n_new=3):
 # Si ambos false → propiedad descartada como limpia sin gastar el scoring completo.
 STEP1_PROMPT = """Aerial satellite image. Examine the CENTER house (the building most centered in the image).
 
-DETECTION: Does the CENTER house ROOF have any blue or silver covering material ON it?
-- Include all shades: bright blue, dark navy, old/faded blue, teal, gray-blue, silver, metallic
-- Old/weathered emergency tarps appear DARK NAVY — count these as YES
-- Do NOT count blue features in the yard (pools are in the YARD, not on roofs)
-→ Set blue_or_silver_on_roof = true if YES
+DETECTION 1 — TARP: Does the CENTER house ROOF have any covering material ON it?
+- Any color: blue, navy, dark navy, silver, metallic, green, black, gray, tan, ANY non-natural color
+- Old/weathered tarps look DARK NAVY or almost black — count these as YES
+- Any material that looks like it was PLACED on the roof (not part of the original structure)
+→ Set blue_or_silver_on_roof = true if YES (field name kept for compatibility)
 
-HOLES: Are there visible black gaps, holes, or missing tiles/shingles on the roof?
+DETECTION 2 — HOLES/MISSING: Visible black gaps, holes, or missing tiles/shingles on the roof?
 → Set visible_holes_or_missing_sections = true if YES
 
-FALSE POSITIVE CHECK — only if blue_or_silver_on_roof is true, ask: is it one of these?
-  POOL: rectangular/oval blue water in the backyard, separated from the roof by grass or patio? → obvious_false_positive = true
-  PAINTED ROOF: the whole roof uniformly one permanent color with straight regular seams across all sections? → obvious_false_positive = true
-  STRIPED TENT: colored stripes (blue + red/yellow) covering walls AND roof, like a circus tent? → obvious_false_positive = true
-  NEIGHBOR: blue material on a building to the LEFT, RIGHT, or CORNER of the image — not on the centered building? → obvious_false_positive = true
+DETECTION 3 — DETERIORATION: Any of these WITHOUT a tarp?
+- Sections of clearly different color/material suggesting patch repairs
+- Visible exposed dark underlayment or wood substrate through gaps
+- Severely uneven roof surface suggesting collapse or structural failure
+→ Set visible_deterioration = true if YES (only clear structural issues, not normal weathering)
+
+BIAS RULE — ALTO RECALL: If you are unsure whether something might be a tarp, damage, or a roof
+problem — mark the relevant flag as TRUE. The intelligent scoring layer makes the final call.
+Never discard a borderline case here. It is better to send a false positive to STEP2 than to miss
+a real damaged roof.
+
+FALSE POSITIVE CHECK — only if blue_or_silver_on_roof is true:
+  POOL: oval/rectangular blue water in the YARD at ground level, surrounded by grass/patio? → obvious_false_positive = true
+  PAINTED ROOF: the WHOLE roof is one solid permanent color with straight regular seams? → obvious_false_positive = true
+  STRIPED TENT: colored stripes (blue+red+yellow) covering walls AND roof like a circus tent? → obvious_false_positive = true
+  NEIGHBOR: material is on a building to the LEFT, RIGHT, or CORNER — NOT on the centered house? → obvious_false_positive = true
 
 Respond ONLY with valid JSON (no markdown):
-{"blue_or_silver_on_roof":false,"visible_holes_or_missing_sections":false,"obvious_false_positive":false}"""
+{"blue_or_silver_on_roof":false,"visible_holes_or_missing_sections":false,"obvious_false_positive":false,"visible_deterioration":false}"""
 
 # FP_CHECK_PROMPT: llamada anti-FP de segundo nivel — solo se ejecuta cuando blue_flag=True y obv_fp=False.
 # Costo: ~$0.000452/prop. Solo pregunta por los dos FPs que STEP1 confunde: fumigación y vecino.
@@ -572,7 +655,7 @@ Real tarp → tarp_visible=true: bright or dark blue, navy, or silver emergency 
 
 IMPORTANT: Write a unique description of what you actually observe in THIS image — which section of the roof, estimated coverage area, any edges or texture visible. Do NOT copy the example text below.
 Answer ONLY with valid JSON (no markdown):
-{"is_sfh":true,"tarp_visible":true,"tarp_evidence":"none","tarp_color":"blue","roof_type":"tile","flat_patches":false,"flat_water_stains":false,"missing_tiles":false,"condition":"fair","score":7,"description":"<describe the actual roof section covered, approximate area, and any visible evidence in THIS image>"}"""
+{"is_residential":true,"tarp_visible":true,"tarp_evidence":"none","tarp_color":"blue","roof_type":"tile","flat_patches":false,"flat_water_stains":false,"missing_tiles":false,"condition":"fair","score":7,"description":"<describe the actual roof section covered, approximate area, and any visible evidence in THIS image>"}"""
 
 # PRESCREEN_PROMPT: para cuando paso 1 detectó holes/damage (sin azul confirmado)
 PRESCREEN_PROMPT = """Aerial satellite image of a residential property in Miami/Hialeah, Florida.
@@ -629,7 +712,7 @@ SCORING impact:
 
 ══════════════════════════════════════════
 Answer ONLY with valid JSON (no markdown):
-{"is_sfh":true,"tarp_visible":false,"tarp_evidence":"none","tarp_color":"none|blue|silver","roof_type":"flat|tile|shingle|metal|unknown","flat_patches":false,"flat_water_stains":false,"missing_tiles":false,"condition":"new|good|fair|poor|critical","score":3,"description":"roof type first, then specific damage or why it looks normal"}
+{"is_residential":true,"tarp_visible":false,"tarp_evidence":"none","tarp_color":"none|blue|silver","roof_type":"flat|tile|shingle|metal|unknown","flat_patches":false,"flat_water_stains":false,"missing_tiles":false,"condition":"new|good|fair|poor|critical","score":3,"description":"roof type first, then specific damage or why it looks normal"}
 ══════════════════════════════════════════"""
 
 DETAIL_PROMPT = """Florida roofing inspector with aerial satellite + street view of a Miami property.
@@ -770,15 +853,17 @@ def main():
             blue_flag  = b1.get("blue_or_silver_on_roof", False)
             holes_flag = b1.get("visible_holes_or_missing_sections", False)
             obv_fp     = b1.get("obvious_false_positive", False)
+            detr_flag  = b1.get("visible_deterioration", False)
             flag_str   = "+".join(filter(None, [
-                "blue/silver" if blue_flag  else "",
-                "holes"       if holes_flag else "",
-                "obv_FP"      if obv_fp     else "",
+                "tarp"   if blue_flag  else "",
+                "holes"  if holes_flag else "",
+                "detr"   if detr_flag  else "",
+                "obv_FP" if obv_fp     else "",
             ])) or "clean"
             modl1 = model1.split("/")[-1][:14]
             logp(f"  paso1→ {flag_str:<12} [{modl1}] | {_spend_tag()}\n")
 
-            if not blue_flag and not holes_flag:
+            if not blue_flag and not holes_flag and not detr_flag:
                 # Limpio en paso 1 — no gastar el scoring completo
                 step1_clean += 1; clean += 1
                 cache_folio(folio_cache, folio, "clean", score=1, reason="paso1_clean")
@@ -821,7 +906,8 @@ def main():
         step2_detail   = "high" if _blue_candidate else "low"
         if _blue_candidate:
             candidates_hq += 1
-        binary, model_used = ai_call([sat], scoring_prompt, max_tokens=300, detail=step2_detail)
+        binary, model_used = ai_call([sat], scoring_prompt, max_tokens=300, detail=step2_detail,
+                                     model_list=MODELS_SMART)
 
         if binary.get("error") == "hard_limit":
             log(f"🛑 LÍMITE DURO: {binary['last_err']}")
@@ -850,9 +936,9 @@ def main():
         if STATS["last_call_spend"] > SPEND_ALERT_2X:
             log(f"⚠️ ALERTA GASTO: paso2 costó ${STATS['last_call_spend']:.5f} (umbral ${SPEND_ALERT_2X})")
 
-        if not binary.get("is_sfh", True):
+        if not binary.get("is_residential", True):
             not_sfh += 1
-            logp("  ✗ not SFH\n")
+            logp("  ✗ not residential\n")
             cache_folio(folio_cache, folio, "not_sfh")
             time.sleep(2); continue
 
@@ -879,7 +965,8 @@ def main():
         sv_imgs  = [i for i in [sv0, sv90, sv45] if i]
         if sv_imgs:
             all_imgs   = [i for i in [sat] + sv_imgs if i]
-            detail_raw, _ = ai_call(all_imgs, DETAIL_PROMPT, max_tokens=350)
+            detail_raw, _ = ai_call(all_imgs, DETAIL_PROMPT, max_tokens=350,
+                                     model_list=MODELS_SMART)
 
             if detail_raw.get("error") == "hard_limit":
                 log(f"🛑 LÍMITE DURO (detail): {detail_raw['last_err']}")
@@ -933,7 +1020,7 @@ def main():
             zip_leads[prop.get("zip", "??")] = zip_leads.get(prop.get("zip", "??"), 0) + 1
             # Incremental push: cada 5 leads nuevos o cada 2 minutos (rate-limit friendly)
             leads_since_push += 1
-            if leads_since_push >= 5 or (time.time() - last_push_ts) >= 120:
+            if not DRY_RUN and (leads_since_push >= 5 or (time.time() - last_push_ts) >= 120):
                 push_csv_to_github(quiet=True)
                 last_push_ts = time.time()
                 leads_since_push = 0
@@ -954,16 +1041,32 @@ def main():
     log(f"  └─ Detail fail: {detail_fail}")
     log(f"  LEADS encontrados: {len(leads)}")
     log(f"  Con lona: {sum(1 for l in leads if l.get('lona_visible'))}")
+    maps_cost  = STATS["sat_calls"] * MAPS_SAT_PRICE + STATS["sv_calls"] * MAPS_SV_PRICE
+    total_cost = STATS["spend_usd"] + maps_cost
     log(f"  ── GASTO ──────────────────────────────────────────────")
-    log(f"  Total USD:    ${STATS['spend_usd']:.4f}")
-    log(f"  Total calls:  {STATS['api_calls']}")
-    log(f"  Costo/prop:   ${STATS['spend_usd']/max(analyzed,1):.5f} promedio")
-    log(f"\nResultados: {LIVE_FILE}")
-    if leads:
-        log("TOP LEADS:")
-        for l in sorted(leads, key=lambda x: x.get("score_urgencia", 0), reverse=True)[:10]:
+    log(f"  AI (OpenAI/Claude):  ${STATS['spend_usd']:.4f} | {STATS['api_calls']} calls")
+    log(f"  Maps API:  ${maps_cost:.4f} ({STATS['sat_calls']} satellite × $0.002 + {STATS['sv_calls']} streetview × $0.007)")
+    log(f"  TOTAL ESTIMADO:      ${total_cost:.4f}")
+    log(f"  Costo/prop:          ${total_cost/max(analyzed,1):.5f} promedio")
+    dry_tag = " [DRY RUN — sin push a GitHub]" if DRY_RUN else ""
+    log(f"\nResultados: {LIVE_FILE}{dry_tag}")
+    new_leads = leads[leads_at_start:]
+    if new_leads:
+        log(f"TOP LEADS (nuevos en esta corrida — {len(new_leads)} total):")
+        for l in sorted(new_leads, key=lambda x: x.get("score_urgencia", 0), reverse=True)[:10]:
             lona = " 🔴LONA" if l.get("lona_visible") else ""
             log(f"  [{l['score_urgencia']}/10] yr:{l.get('year_built','?')} {l['address']}{lona}")
+    if DRY_RUN and new_leads:
+        rate = len(new_leads) / max(analyzed - skipped, 1) * 100
+        log(f"\n{'='*65}")
+        log(f"DRY RUN SUMMARY")
+        log(f"  Casas analizadas (netas):   {analyzed - skipped}")
+        log(f"  Leads encontrados:          {len(new_leads)}")
+        log(f"  TASA:                       {rate:.2f}%")
+        log(f"  Gasto total:                ${total_cost:.4f}")
+        log(f"  Muestra de leads (verif visual):")
+        for l in sorted(new_leads, key=lambda x: x.get("score_urgencia", 0), reverse=True)[:10]:
+            log(f"    [{l['score_urgencia']}/10] {l['address']}  →  {l.get('gmaps','')}")
 
     # ─── Actualizar zip_stats + avanzar offset GIS para próxima corrida ─────────
     today = datetime.now().strftime("%Y-%m-%d")
@@ -987,8 +1090,11 @@ def main():
         gasto=STATS["spend_usd"], sat_fail=sat_fail, ai_fail=ai_fail,
         errors=errors, status=run_status
     )
-    push_csv_to_github()
-    backup_folio_cache_to_github()
+    if not DRY_RUN:
+        push_csv_to_github()
+        backup_folio_cache_to_github()
+    else:
+        log("DRY RUN: push a GitHub omitido.")
 
 def write_run_history(run_zips, analyzed, candidates_hq, leads_new, leads_total,
                       gasto, sat_fail, ai_fail, errors, status):
