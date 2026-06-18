@@ -86,6 +86,9 @@ def append_lead_to_csv(record):
 TARGET_LEADS = 9999
 MAX_ANALYZED = int(os.environ.get("SCANNER_MAX", "330"))  # override con SCANNER_MAX env var (testing)
 DRY_RUN      = os.environ.get("DRY_RUN", "0").strip() == "1"  # no push a GitHub ni webhooks
+# SCANNER_ZIPS: fuerza ZIPs específicos (coma-separados). Útil para tests y mediciones.
+# Ejemplo: SCANNER_ZIPS=33010,33013,33135
+SCANNER_ZIPS = [z.strip() for z in os.environ.get("SCANNER_ZIPS", "").split(",") if z.strip()]
 
 # ─── MODELOS ──────────────────────────────────────────────────────────────────
 # STEP1 (filtro masivo, barato): siempre gpt-4o-mini + OR fallbacks. No configurable.
@@ -527,7 +530,7 @@ def get_properties(zip_codes, zip_stats=None):
     all_props = []
     BASE = "https://gisweb.miamidade.gov/arcgis/rest/services/MD_LandInformation/MapServer/24/query"
     for zc in zip_codes:
-        offset = 0 if HURRICANE_ZIPS else zip_stats.get(zc, {}).get("gis_offset", 0)
+        offset = 0 if (HURRICANE_ZIPS or SCANNER_ZIPS) else zip_stats.get(zc, {}).get("gis_offset", 0)
         try:
             r = requests.get(BASE, params={
                 "where": f"TRUE_SITE_ZIP_CODE LIKE '{zc}%' AND (DOR_CODE_CUR LIKE '01%' OR DOR_CODE_CUR LIKE '02%' OR DOR_CODE_CUR LIKE '03%') AND CONDO_FLAG='N'",
@@ -574,7 +577,10 @@ def save_zip_stats(stats):
 
 def select_run_zips(zip_stats, n_top=5, n_new=3):
     """70/30: top-N established ZIPs by lead rate + N new/under-sampled ZIPs.
-    Hurricane mode: always returns HURRICANE_ZIPS unchanged."""
+    Hurricane mode: always returns HURRICANE_ZIPS unchanged.
+    Test mode: SCANNER_ZIPS env var fuerza ZIPs específicos."""
+    if SCANNER_ZIPS:
+        return SCANNER_ZIPS
     if HURRICANE_ZIPS:
         return HURRICANE_ZIPS
     established = sorted(
