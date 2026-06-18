@@ -36,7 +36,8 @@ OUT_DIR           = Path("./scan_results"); OUT_DIR.mkdir(exist_ok=True)
 LIVE_FILE         = OUT_DIR / "overnight_leads.json"
 LOG_FILE          = OUT_DIR / "overnight_log.txt"
 FOLIO_CACHE_FILE  = OUT_DIR / "analyzed_folios.json"
-LEADS_CSV_FILE    = OUT_DIR / "leads_para_ventas.csv"
+LEADS_CSV_FILE      = OUT_DIR / "leads_para_ventas.csv"
+VERIFICAR_CSV_FILE  = OUT_DIR / "para_verificar.csv"
 RUN_HISTORY_FILE  = OUT_DIR / "run_history.csv"
 
 CSV_FIELDNAMES = [
@@ -82,13 +83,42 @@ def append_lead_to_csv(record):
             writer.writeheader()
         writer.writerow(row)
 
+VERIFICAR_FIELDNAMES = [
+    "Dirección", "Año", "Lat", "Lng", "Link Google Maps",
+    "flag_tarp", "flag_holes", "flag_detr", "obvious_fp_step1", "Folio"
+]
+
+def append_para_verificar(prop, b1):
+    """Escribe una fila en para_verificar.csv para revisión manual."""
+    write_header = not VERIFICAR_CSV_FILE.exists() or VERIFICAR_CSV_FILE.stat().st_size == 0
+    lat, lng = prop.get("lat", ""), prop.get("lng", "")
+    row = {
+        "Dirección":        prop.get("address", ""),
+        "Año":              prop.get("year_built", ""),
+        "Lat":              lat,
+        "Lng":              lng,
+        "Link Google Maps": f"https://maps.google.com/?q={lat},{lng}",
+        "flag_tarp":        b1.get("blue_or_silver_on_roof", False),
+        "flag_holes":       b1.get("visible_holes_or_missing_sections", False),
+        "flag_detr":        b1.get("visible_deterioration", False),
+        "obvious_fp_step1": b1.get("obvious_false_positive", False),
+        "Folio":            prop.get("folio", ""),
+    }
+    with open(VERIFICAR_CSV_FILE, "a", newline="", encoding="utf-8-sig") as f:
+        writer = csv.DictWriter(f, fieldnames=VERIFICAR_FIELDNAMES)
+        if write_header:
+            writer.writeheader()
+        writer.writerow(row)
+
+
 # ─── PARÁMETROS DE CORRIDA ────────────────────────────────────────────────────
 TARGET_LEADS = 9999
 MAX_ANALYZED = int(os.environ.get("SCANNER_MAX", "330"))  # override con SCANNER_MAX env var (testing)
 DRY_RUN      = os.environ.get("DRY_RUN", "0").strip() == "1"  # no push a GitHub ni webhooks
 # SCANNER_ZIPS: fuerza ZIPs específicos (coma-separados). Útil para tests y mediciones.
 # Ejemplo: SCANNER_ZIPS=33010,33013,33135
-SCANNER_ZIPS = [z.strip() for z in os.environ.get("SCANNER_ZIPS", "").split(",") if z.strip()]
+SCANNER_ZIPS   = [z.strip() for z in os.environ.get("SCANNER_ZIPS", "").split(",") if z.strip()]
+VERIFY_MODE    = os.environ.get("VERIFY_MODE", "0").strip() == "1"  # lista candidatos STEP1 sin clasificar
 
 # ─── TOPES DIARIOS (activos cuando se setean via env var; 9999 = sin límite) ──
 # Activar en producción: MAX_HOUSES_DAY=4500 HOT_LEADS_TARGET=200 TOTAL_LEADS_CAP=300
@@ -618,11 +648,14 @@ DETECTION 1 — TARP: Does the CENTER house ROOF have any covering material ON i
 DETECTION 2 — HOLES/MISSING: Visible black gaps, holes, or missing tiles/shingles on the roof?
 → Set visible_holes_or_missing_sections = true if YES
 
-DETECTION 3 — DETERIORATION: Any of these WITHOUT a tarp?
-- Sections of clearly different color/material suggesting patch repairs
-- Visible exposed dark underlayment or wood substrate through gaps
-- Severely uneven roof surface suggesting collapse or structural failure
-→ Set visible_deterioration = true if YES (only clear structural issues, not normal weathering)
+DETECTION 3 — DETERIORATION: Any visible sign of wear, aging, or damage WITHOUT a tarp?
+- Irregular tile pattern: displaced or broken tiles disrupting the uniform roof surface
+- Strong discoloration or staining: large dark patches, black/green algae areas, rust stains
+- Visible patchwork: sections of clearly DIFFERENT color or material (previous repairs)
+- Worn or aged surface: inconsistent texture, crumbling material, exposed substrate or underlayment
+- Any visible gap, hole, or dark void in the roof surface
+→ Set visible_deterioration = true for ANY of the above, even if not 100% certain — ALTO RECALL.
+   Only skip if the whole roof looks uniformly sound (same color, same texture throughout).
 
 BIAS RULE — ALTO RECALL: If you are unsure whether something might be a tarp, damage, or a roof
 problem — mark the relevant flag as TRUE. The intelligent scoring layer makes the final call.
@@ -912,14 +945,22 @@ def main():
                 cache_folio(folio_cache, folio, "clean", score=1, reason="paso1_clean")
                 time.sleep(2); continue
 
-            if blue_flag and obv_fp and not holes_flag:
+            if blue_flag and obv_fp and not holes_flag and not detr_flag:
                 # Paso 1 identificó FP obvio (piscina, metal uniforme, carpa a rayas, vecino)
                 step1_clean += 1; clean += 1
                 logp(f"  ✗ obvio FP (paso1)\n")
                 cache_folio(folio_cache, folio, "clean", score=1, reason="paso1_obvious_fp")
                 time.sleep(2); continue
 
-            # FP check de segundo nivel: solo cuando blue_flag=True y obv_fp=False
+            # ── VERIFY MODE: listar candidato y saltar STEP2 ──────────────────
+            if VERIFY_MODE:
+                append_para_verificar(prop, b1)
+                step1_to_step2 += 1  # cuenta como "fue a revisión"
+                logp(f"  ✓ CANDIDATO → para_verificar.csv\n")
+                # No cachear — será re-analizado cuando el modo vuelva a normal
+                time.sleep(1); continue
+
+            # FP check de segundo nivel: solo cuando blue_flag=True y obv_fp=False (modo normal)
             # Pregunta específicamente por fumigación + vecino — dos FPs que STEP1 suele pasar
             if blue_flag and not obv_fp and not holes_flag:
                 fp2, _m2 = ai_call([sat], FP_CHECK_PROMPT, max_tokens=20)
@@ -1142,7 +1183,8 @@ def main():
     log(f"  Maps est.: ${maps_cost:.4f} ({STATS['sat_calls']} sat × $0.002 + {STATS['sv_calls']} sv × $0.007)")
     log(f"  Total est: ${STATS['spend_usd'] + maps_cost:.4f} | ${(STATS['spend_usd'] + maps_cost)/max(analyzed,1):.5f}/prop")
     dry_tag = " [DRY RUN — sin push a GitHub]" if DRY_RUN else ""
-    log(f"\nResultados: {LIVE_FILE}{dry_tag}")
+    verify_tag = " [VERIFY MODE — candidatos en para_verificar.csv]" if VERIFY_MODE else ""
+    log(f"\nResultados: {LIVE_FILE}{dry_tag}{verify_tag}")
     if new_hot:
         log(f"TOP CALIENTES (nuevos — {len(new_hot)} total):")
         for l in sorted(new_hot, key=lambda x: x.get("score_urgencia", 0), reverse=True)[:10]:
@@ -1162,6 +1204,11 @@ def main():
         log(f"  ─── RESULTADOS ──────────────────────────────────────")
         log(f"  🔥 CALIENTES (8-10): {tier_hot:4d} → {rate_hot:.2f}% de las casas")
         log(f"  🟡 POSIBLES  (5-7):  {tier_posible:4d} → {rate_pos:.2f}% de las casas")
+        if VERIFY_MODE:
+            n_verificar = step1_to_step2
+            log(f"  ─── VERIFY MODE ─────────────────────────────────────")
+            log(f"  Candidatos en para_verificar.csv: {n_verificar}")
+            log(f"  → Revisar manualmente antes de activar STEP2")
         log(f"  ─── GASTO IA (Maps aparte) ──────────────────────────")
         log(f"  AI: ${STATS['spend_usd']:.4f} | {STATS['api_calls']} calls | ${STATS['spend_usd']/max(netas,1):.5f}/casa")
         if new_hot:
