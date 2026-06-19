@@ -155,9 +155,13 @@ HOT_LEADS_TARGET = int(os.environ.get("HOT_LEADS_TARGET", "9999"))
 TOTAL_LEADS_CAP  = int(os.environ.get("TOTAL_LEADS_CAP",  "9999"))
 
 # ─── MODELOS ──────────────────────────────────────────────────────────────────
-# STEP1 (filtro masivo, barato): siempre gpt-4o-mini + OR fallbacks. No configurable.
+# STEP1 (filtro masivo, alto recall): configurable vía env var.
+# Por defecto: gpt-4o-mini.
+# Para Haiku en STEP1: STEP1_PROVIDER=claude STEP1_MODEL=claude-haiku-4-5-20251001
+STEP1_PROVIDER = os.environ.get("STEP1_PROVIDER", "openai")
+STEP1_MODEL_ID = os.environ.get("STEP1_MODEL",    "gpt-4o-mini")
 MODELS = [
-    ("openai",     "gpt-4o-mini"),
+    (STEP1_PROVIDER, STEP1_MODEL_ID),
     ("openrouter", "nvidia/nemotron-nano-12b-v2-vl:free"),
     ("openrouter", "google/gemma-4-31b-it:free"),
     ("openrouter", "google/gemma-4-26b-a4b-it:free"),
@@ -165,8 +169,13 @@ MODELS = [
 ]
 
 # STEP2 + STEP3 (capa inteligente): configurable vía env var.
-# Para cambiar: SMART_MODEL=claude-haiku-4-5-20251001 SMART_PROVIDER=claude
-# Por defecto: gpt-4o-mini (igual que STEP1 hasta tener la key de Claude)
+# Por defecto: gpt-4o-mini.
+# Para Haiku en STEP2/3: SMART_PROVIDER=claude SMART_MODEL=claude-haiku-4-5-20251001
+#
+# Activar TODO con Haiku (reemplaza GPT-mini en ambas capas):
+#   STEP1_PROVIDER=claude STEP1_MODEL=claude-haiku-4-5-20251001 \
+#   SMART_PROVIDER=claude SMART_MODEL=claude-haiku-4-5-20251001 \
+#   ANTHROPIC_API_KEY=<key>
 SMART_PROVIDER  = os.environ.get("SMART_PROVIDER",  "openai")
 SMART_MODEL_ID  = os.environ.get("SMART_MODEL",     "gpt-4o-mini")
 MODELS_SMART = [
