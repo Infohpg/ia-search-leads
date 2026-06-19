@@ -84,15 +84,17 @@ def append_lead_to_csv(record):
         writer.writerow(row)
 
 VERIFICAR_FIELDNAMES = [
-    "Dirección", "Año", "Lat", "Lng", "Link Google Maps",
+    "grupo", "Dirección", "Año", "Lat", "Lng", "Link Google Maps",
     "flag_tarp", "flag_holes", "flag_detr", "obvious_fp_step1", "Folio"
 ]
+VERIFY_CLEAN_SAMPLE = int(os.environ.get("VERIFY_CLEAN_SAMPLE", "15"))  # casas limpias para muestra FN
 
-def append_para_verificar(prop, b1):
+def append_para_verificar(prop, b1, grupo="A_candidato"):
     """Escribe una fila en para_verificar.csv para revisión manual."""
     write_header = not VERIFICAR_CSV_FILE.exists() or VERIFICAR_CSV_FILE.stat().st_size == 0
     lat, lng = prop.get("lat", ""), prop.get("lng", "")
     row = {
+        "grupo":            grupo,
         "Dirección":        prop.get("address", ""),
         "Año":              prop.get("year_built", ""),
         "Lat":              lat,
@@ -109,6 +111,32 @@ def append_para_verificar(prop, b1):
         if write_header:
             writer.writeheader()
         writer.writerow(row)
+
+def write_clean_sample_to_csv(sample):
+    """Escribe el grupo B (muestra limpias) al final de para_verificar.csv."""
+    if not sample:
+        return
+    write_header = not VERIFICAR_CSV_FILE.exists() or VERIFICAR_CSV_FILE.stat().st_size == 0
+    empty_b1 = {}
+    with open(VERIFICAR_CSV_FILE, "a", newline="", encoding="utf-8-sig") as f:
+        writer = csv.DictWriter(f, fieldnames=VERIFICAR_FIELDNAMES)
+        if write_header:
+            writer.writeheader()
+        for prop in sample:
+            lat, lng = prop.get("lat", ""), prop.get("lng", "")
+            writer.writerow({
+                "grupo":            "B_limpio_muestra",
+                "Dirección":        prop.get("address", ""),
+                "Año":              prop.get("year_built", ""),
+                "Lat":              lat,
+                "Lng":              lng,
+                "Link Google Maps": f"https://maps.google.com/?q={lat},{lng}",
+                "flag_tarp":        False,
+                "flag_holes":       False,
+                "flag_detr":        False,
+                "obvious_fp_step1": False,
+                "Folio":            prop.get("folio", ""),
+            })
 
 
 # ─── PARÁMETROS DE CORRIDA ────────────────────────────────────────────────────
@@ -852,6 +880,10 @@ def main():
 
     # ── Daily cap tracking ──
     cap_posibles = False   # True once (hot+posible) >= TOTAL_LEADS_CAP
+
+    # ── Grupo B: reservoir sampling de casas limpias (falsos negativos) ──
+    clean_reservoir  = []   # muestra aleatoria de paso1_clean
+    clean_reservoir_n = 0   # contador para reservoir sampling (Algorithm R)
     posibles = []          # in-memory list of posible leads (5-7)
 
     for prop in props:
@@ -943,6 +975,16 @@ def main():
                 # Limpio en paso 1 — no gastar el scoring completo
                 step1_clean += 1; clean += 1
                 cache_folio(folio_cache, folio, "clean", score=1, reason="paso1_clean")
+                # Reservoir sampling para muestra de falsos negativos (Grupo B)
+                if VERIFY_MODE:
+                    clean_reservoir_n += 1
+                    if len(clean_reservoir) < VERIFY_CLEAN_SAMPLE:
+                        clean_reservoir.append(prop)
+                    else:
+                        import random
+                        j = random.randint(0, clean_reservoir_n - 1)
+                        if j < VERIFY_CLEAN_SAMPLE:
+                            clean_reservoir[j] = prop
                 time.sleep(2); continue
 
             if blue_flag and obv_fp and not holes_flag and not detr_flag:
@@ -1156,6 +1198,11 @@ def main():
 
         time.sleep(4)
 
+    # ── Escribir Grupo B (muestra de limpias para FN check) ─────────────────
+    if VERIFY_MODE and clean_reservoir:
+        write_clean_sample_to_csv(clean_reservoir)
+        log(f"\n[VERIFY MODE] Grupo B escrito: {len(clean_reservoir)} casas limpias en para_verificar.csv")
+
     # ─── Reporte final ────────────────────────────────────────────────────────
     elapsed_m  = (time.time() - start_time) / 60
     maps_cost  = STATS["sat_calls"] * MAPS_SAT_PRICE + STATS["sv_calls"] * MAPS_SV_PRICE
@@ -1205,10 +1252,10 @@ def main():
         log(f"  🔥 CALIENTES (8-10): {tier_hot:4d} → {rate_hot:.2f}% de las casas")
         log(f"  🟡 POSIBLES  (5-7):  {tier_posible:4d} → {rate_pos:.2f}% de las casas")
         if VERIFY_MODE:
-            n_verificar = step1_to_step2
             log(f"  ─── VERIFY MODE ─────────────────────────────────────")
-            log(f"  Candidatos en para_verificar.csv: {n_verificar}")
-            log(f"  → Revisar manualmente antes de activar STEP2")
+            log(f"  Grupo A (candidatos STEP1):  {step1_to_step2}")
+            log(f"  Grupo B (limpias muestra):   {len(clean_reservoir)}")
+            log(f"  → Total en para_verificar.csv: {step1_to_step2 + len(clean_reservoir)}")
         log(f"  ─── GASTO IA (Maps aparte) ──────────────────────────")
         log(f"  AI: ${STATS['spend_usd']:.4f} | {STATS['api_calls']} calls | ${STATS['spend_usd']/max(netas,1):.5f}/casa")
         if new_hot:
