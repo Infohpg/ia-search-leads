@@ -36,9 +36,18 @@ OUT_DIR           = Path("./scan_results"); OUT_DIR.mkdir(exist_ok=True)
 LIVE_FILE         = OUT_DIR / "overnight_leads.json"
 LOG_FILE          = OUT_DIR / "overnight_log.txt"
 FOLIO_CACHE_FILE  = OUT_DIR / "analyzed_folios.json"
-LEADS_CSV_FILE      = OUT_DIR / "leads_para_ventas.csv"
-VERIFICAR_CSV_FILE  = OUT_DIR / "para_verificar.csv"
 RUN_HISTORY_FILE  = OUT_DIR / "run_history.csv"
+
+# STATE_TAG: separar salidas por estado (FL / CA).
+# Setealo en el .env: STATE_TAG=FL o STATE_TAG=CA
+STATE_TAG           = os.environ.get("STATE_TAG", "FL").upper()
+LEADS_CSV_FILE      = OUT_DIR / f"leads_{STATE_TAG}.csv"
+VERIFICAR_CSV_FILE  = OUT_DIR / "para_verificar.csv"
+# COMPARISON_MODE: registra GPT-mini vs Claude por casa (activa con COMPARISON_MODE=1)
+COMPARISON_MODE     = os.environ.get("COMPARISON_MODE", "0").strip() == "1"
+# FN_SAMPLE_RATE: % casas "limpias" de GPT-mini que Claude double-chequea
+FN_SAMPLE_RATE      = float(os.environ.get("FN_SAMPLE_RATE", "0.10"))
+COMPARISON_CSV_FILE = OUT_DIR / f"comparison_{STATE_TAG}.csv"
 
 CSV_FIELDNAMES = [
     "Score", "Lona", "Dirección", "Año construcción", "Lat", "Lng",
@@ -139,6 +148,54 @@ def write_clean_sample_to_csv(sample):
             })
 
 
+COMPARISON_FIELDNAMES = [
+    "check_type",       # "candidate" (GPT flagged) | "fn_sample" (GPT clean, Claude chequea)
+    "Dirección", "Año", "ZIP", "Folio",
+    "step1_model", "step1_flags",
+    "step2_model", "step2_score", "step2_verdict",  # confirmed|rejected_fp|fn_catch|clean_confirmed
+    "step2_description",
+    "Link Google Maps",
+]
+
+def log_comparison(prop, b1, step2_result, step2_model, check_type):
+    """Escribe una fila en comparison_<STATE>.csv para análisis GPT-mini vs Claude."""
+    write_header = not COMPARISON_CSV_FILE.exists() or COMPARISON_CSV_FILE.stat().st_size == 0
+    lat, lng     = prop.get("lat", ""), prop.get("lng", "")
+    flags        = "+".join(filter(None, [
+        "tarp"  if b1.get("blue_or_silver_on_roof") else "",
+        "holes" if b1.get("visible_holes_or_missing_sections") else "",
+        "detr"  if b1.get("visible_deterioration") else "",
+    ])) or "clean"
+    score   = step2_result.get("score", 0) if "error" not in step2_result else 0
+    if check_type == "fn_sample":
+        verdict = "fn_catch" if score >= 8 else "clean_confirmed"
+    elif score >= 8:
+        verdict = "confirmed"
+    elif score >= 5:
+        verdict = "posible"
+    else:
+        verdict = "rejected_fp"
+    row = {
+        "check_type":        check_type,
+        "Dirección":         prop.get("address", ""),
+        "Año":               prop.get("year_built", ""),
+        "ZIP":               prop.get("zip", ""),
+        "Folio":             prop.get("folio", ""),
+        "step1_model":       "gpt-4o-mini",
+        "step1_flags":       flags,
+        "step2_model":       step2_model,
+        "step2_score":       score,
+        "step2_verdict":     verdict,
+        "step2_description": str(step2_result.get("description", ""))[:120],
+        "Link Google Maps":  f"https://maps.google.com/?q={lat},{lng}",
+    }
+    with open(COMPARISON_CSV_FILE, "a", newline="", encoding="utf-8-sig") as f:
+        writer = csv.DictWriter(f, fieldnames=COMPARISON_FIELDNAMES)
+        if write_header:
+            writer.writeheader()
+        writer.writerow(row)
+
+
 # ─── PARÁMETROS DE CORRIDA ────────────────────────────────────────────────────
 TARGET_LEADS = 9999
 MAX_ANALYZED = int(os.environ.get("SCANNER_MAX", "330"))  # override con SCANNER_MAX env var (testing)
@@ -169,19 +226,18 @@ MODELS = [
 ]
 
 # STEP2 + STEP3 (capa inteligente): configurable vía env var.
-# Por defecto: gpt-4o-mini.
-# Para Haiku en STEP2/3: SMART_PROVIDER=claude SMART_MODEL=claude-haiku-4-5-20251001
-#
-# Activar TODO con Haiku (reemplaza GPT-mini en ambas capas):
-#   STEP1_PROVIDER=claude STEP1_MODEL=claude-haiku-4-5-20251001 \
-#   SMART_PROVIDER=claude SMART_MODEL=claude-haiku-4-5-20251001 \
-#   ANTHROPIC_API_KEY=<key>
+# Cuando José pega ANTHROPIC_API_KEY → automáticamente usa Claude Haiku.
+# Sin la key, cae de vuelta a gpt-4o-mini sin tocar código.
+# Activar con Haiku: SMART_PROVIDER=claude SMART_MODEL=claude-haiku-4-5-20251001 ANTHROPIC_API_KEY=<key>
 SMART_PROVIDER  = os.environ.get("SMART_PROVIDER",  "openai")
 SMART_MODEL_ID  = os.environ.get("SMART_MODEL",     "gpt-4o-mini")
+# Auto-fallback: si SMART_PROVIDER=claude pero no hay key → gpt-4o-mini
+_smart_p = SMART_PROVIDER if (SMART_PROVIDER != "claude" or ANTHROPIC_KEY) else "openai"
+_smart_m = SMART_MODEL_ID if (SMART_PROVIDER != "claude" or ANTHROPIC_KEY) else "gpt-4o-mini"
 MODELS_SMART = [
-    (SMART_PROVIDER, SMART_MODEL_ID),
-    ("openrouter",   "nvidia/nemotron-nano-12b-v2-vl:free"),
-    ("openrouter",   "google/gemma-4-31b-it:free"),
+    (_smart_p, _smart_m),
+    ("openrouter", "nvidia/nemotron-nano-12b-v2-vl:free"),
+    ("openrouter", "google/gemma-4-31b-it:free"),
 ]
 
 # ─── MODO HURACÁN ─────────────────────────────────────────────────────────────
@@ -219,7 +275,8 @@ ZIP_STATS_FILE = OUT_DIR / "zip_stats.json"
 
 # ─── ESTADÍSTICAS GLOBALES ────────────────────────────────────────────────────
 STATS = {"api_calls": 0, "spend_usd": 0.0, "last_call_spend": 0.0,
-         "sat_calls": 0, "sv_calls": 0}
+         "sat_calls": 0, "sv_calls": 0,
+         "step1_usd": 0.0, "step2_usd": 0.0}  # costos separados por capa
 
 def _track_spend(usage):
     """Registra gasto de una respuesta OpenAI. Retorna costo de esa llamada."""
@@ -457,10 +514,11 @@ def restore_csv_from_github():
 
 # ─── AI CALL ──────────────────────────────────────────────────────────────────
 
-def ai_call(images, prompt, max_tokens=300, detail="low", model_list=None):
+def ai_call(images, prompt, max_tokens=300, detail="low", model_list=None, cost_bucket="step1"):
     """Llama al modelo de IA con las imágenes y el prompt dado.
     model_list: None = usar MODELS (STEP1 barato), MODELS_SMART = capa inteligente.
     detail='high' solo para candidatos azules en paso2 — ~3x costo de imagen.
+    cost_bucket: 'step1' o 'step2' — para tracking de costos separados.
     Retorna (result_dict, model_label).
     result_dict['error'] existe en caso de fallo; 'error'=='hard_limit' = abortar corrida."""
     raw      = ""
@@ -533,7 +591,7 @@ def ai_call(images, prompt, max_tokens=300, detail="low", model_list=None):
 
                 # Registrar gasto
                 if provider == "openai":
-                    _track_spend(d.get("usage"))
+                    cost = _track_spend(d.get("usage"))
                 elif provider == "claude":
                     usage = d.get("usage", {})
                     # Claude Haiku 4.5: $0.80/1M input, $4.00/1M output
@@ -543,6 +601,9 @@ def ai_call(images, prompt, max_tokens=300, detail="low", model_list=None):
                             usage.get("output_tokens", 0) * OUT_PRICE_C)
                     STATS["spend_usd"]      += cost
                     STATS["last_call_spend"] = cost
+                else:
+                    cost = 0.0
+                STATS[f"{cost_bucket}_usd"] = STATS.get(f"{cost_bucket}_usd", 0.0) + cost
 
                 # Detectar errores según provider
                 if provider == "claude":
@@ -891,8 +952,15 @@ def main():
     cap_posibles = False   # True once (hot+posible) >= TOTAL_LEADS_CAP
 
     # ── Grupo B: reservoir sampling de casas limpias (falsos negativos) ──
-    clean_reservoir  = []   # muestra aleatoria de paso1_clean
-    clean_reservoir_n = 0   # contador para reservoir sampling (Algorithm R)
+    clean_reservoir   = []   # muestra aleatoria de paso1_clean
+    clean_reservoir_n = 0    # contador para reservoir sampling (Algorithm R)
+
+    # ── COMPARISON MODE: métricas GPT-mini vs Claude ──
+    cmp_candidates  = 0   # casas que GPT-mini flaggeó → fueron a Claude
+    cmp_confirmed   = 0   # Claude confirmó como 8-10
+    cmp_rejected_fp = 0   # Claude rechazó (FP de GPT-mini)
+    cmp_fn_sample   = 0   # casas limpias de GPT-mini enviadas a Claude
+    cmp_fn_caught   = 0   # de esas, Claude detectó 8+ (falso negativo GPT-mini)
     posibles = []          # in-memory list of posible leads (5-7)
 
     for prop in props:
@@ -984,6 +1052,16 @@ def main():
                 # Limpio en paso 1 — no gastar el scoring completo
                 step1_clean += 1; clean += 1
                 cache_folio(folio_cache, folio, "clean", score=1, reason="paso1_clean")
+                # COMPARISON MODE: Claude double-chequea FN_SAMPLE_RATE % de las limpias
+                if COMPARISON_MODE and random.random() < FN_SAMPLE_RATE:
+                    cmp_fn_sample += 1
+                    fn_res, fn_model = ai_call([sat], make_step2_prompt(yr), max_tokens=300,
+                                               model_list=MODELS_SMART, cost_bucket="step2")
+                    if "error" not in fn_res:
+                        log_comparison(prop, b1, fn_res, fn_model, "fn_sample")
+                        if fn_res.get("score", 0) >= 8:
+                            cmp_fn_caught += 1
+                            logp(f"  🔴 FN CATCH: Claude={fn_res.get('score')}/10 (GPT-mini lo marcó limpio)\n")
                 # Reservoir sampling para muestra de falsos negativos (Grupo B)
                 if VERIFY_MODE:
                     clean_reservoir_n += 1
@@ -1042,8 +1120,10 @@ def main():
         if _blue_candidate:
             candidates_hq += 1
         step1_to_step2 += 1
+        if COMPARISON_MODE:
+            cmp_candidates += 1
         binary, model_used = ai_call([sat], scoring_prompt, max_tokens=300, detail=step2_detail,
-                                     model_list=MODELS_SMART)
+                                     model_list=MODELS_SMART, cost_bucket="step2")
 
         if binary.get("error") == "hard_limit":
             log(f"🛑 LÍMITE DURO: {binary['last_err']}")
@@ -1085,6 +1165,14 @@ def main():
         modl = model_used.split("/")[-1][:20]
         logp(f"  sat→ score:{q} cond:{cond} {tarp}{miss} [{modl}] | {_spend_tag()}\n")
         logp(f"  → {binary.get('description','')[:90]}\n")
+
+        # Comparison logging: registra decisión de Claude vs GPT-mini flag
+        if COMPARISON_MODE:
+            log_comparison(prop, b1, binary, model_used, "candidate")
+            if q >= 8:
+                cmp_confirmed += 1
+            elif q < 5:
+                cmp_rejected_fp += 1
 
         if q < 5:
             clean += 1
@@ -1235,9 +1323,22 @@ def main():
     log(f"  ├─ AI fail:              {ai_fail}")
     log(f"  └─ detail fail:          {detail_fail}")
     log(f"  ── GASTO IA (Maps se paga aparte) ───────────────────────")
-    log(f"  AI spend:  ${STATS['spend_usd']:.4f} | {STATS['api_calls']} calls")
-    log(f"  Maps est.: ${maps_cost:.4f} ({STATS['sat_calls']} sat × $0.002 + {STATS['sv_calls']} sv × $0.007)")
-    log(f"  Total est: ${STATS['spend_usd'] + maps_cost:.4f} | ${(STATS['spend_usd'] + maps_cost)/max(analyzed,1):.5f}/prop")
+    log(f"  GPT-mini STEP1:  ${STATS['step1_usd']:.4f}")
+    log(f"  Claude   STEP2:  ${STATS['step2_usd']:.4f}")
+    log(f"  Total IA:        ${STATS['spend_usd']:.4f} | {STATS['api_calls']} calls")
+    log(f"  Maps est.:       ${maps_cost:.4f} ({STATS['sat_calls']} sat + {STATS['sv_calls']} sv)")
+    log(f"  Total est.:      ${STATS['spend_usd'] + maps_cost:.4f} | ${(STATS['spend_usd'] + maps_cost)/max(analyzed,1):.5f}/prop")
+    if COMPARISON_MODE:
+        fp_rate = cmp_rejected_fp / max(cmp_candidates, 1) * 100
+        fn_rate = cmp_fn_caught  / max(cmp_fn_sample,   1) * 100
+        log(f"  ── COMPARISON GPT-mini vs Claude ─────────────────────")
+        log(f"  GPT-mini flaggeó:   {cmp_candidates} candidatos")
+        log(f"  Claude confirmó:    {cmp_confirmed} ({cmp_confirmed/max(cmp_candidates,1)*100:.0f}%)")
+        log(f"  Claude rechazó FP:  {cmp_rejected_fp} ({fp_rate:.0f}%) ← FP de GPT-mini")
+        log(f"  FN sample (limpias): {cmp_fn_sample} doble-chequeadas por Claude")
+        log(f"  FN detectados:      {cmp_fn_caught} ({fn_rate:.0f}%) ← GPT-mini se los perdió")
+        if COMPARISON_CSV_FILE.exists():
+            log(f"  Detalle: {COMPARISON_CSV_FILE}")
     dry_tag = " [DRY RUN — sin push a GitHub]" if DRY_RUN else ""
     verify_tag = " [VERIFY MODE — candidatos en para_verificar.csv]" if VERIFY_MODE else ""
     log(f"\nResultados: {LIVE_FILE}{dry_tag}{verify_tag}")
@@ -1266,7 +1367,9 @@ def main():
             log(f"  Grupo B (limpias muestra):   {len(clean_reservoir)}")
             log(f"  → Total en para_verificar.csv: {step1_to_step2 + len(clean_reservoir)}")
         log(f"  ─── GASTO IA (Maps aparte) ──────────────────────────")
-        log(f"  AI: ${STATS['spend_usd']:.4f} | {STATS['api_calls']} calls | ${STATS['spend_usd']/max(netas,1):.5f}/casa")
+        log(f"  GPT-mini STEP1: ${STATS['step1_usd']:.4f}")
+        log(f"  Claude   STEP2: ${STATS['step2_usd']:.4f}")
+        log(f"  Total IA:       ${STATS['spend_usd']:.4f} | {STATS['api_calls']} calls | ${STATS['spend_usd']/max(netas,1):.5f}/casa")
         if new_hot:
             log(f"  ─── CALIENTES (verificación visual) ─────────────────")
             for l in sorted(new_hot, key=lambda x: x.get("score_urgencia", 0), reverse=True)[:10]:
