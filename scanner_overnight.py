@@ -21,8 +21,9 @@ if not OPENAI_KEY or not MAPS_KEY:
     raise RuntimeError("OPENAI_API_KEY y GOOGLE_MAPS_API_KEY son requeridas (vars de entorno)")
 
 # ─── LÍMITES DUROS — SIN EXCEPCIONES ──────────────────────────────────────────
-MAX_API_CALLS  = 2200
-MAX_SPEND_USD  = 3.00
+# Override con env vars: MAX_API_CALLS=9000 MAX_SPEND_USD=6.00
+MAX_API_CALLS  = int(os.environ.get("MAX_API_CALLS_LIMIT", "2200"))
+MAX_SPEND_USD  = float(os.environ.get("MAX_SPEND_USD", "3.00"))
 IN_PRICE       = 0.15 / 1_000_000   # $ por token entrada (gpt-4o-mini)
 OUT_PRICE      = 0.60 / 1_000_000   # $ por token salida  (gpt-4o-mini)
 SPEND_ALERT_2X = 0.005              # alerta si 1 sola llamada supera este monto (~2× detail)
@@ -41,7 +42,8 @@ RUN_HISTORY_FILE  = OUT_DIR / "run_history.csv"
 # STATE_TAG: separar salidas por estado (FL / CA).
 # Setealo en el .env: STATE_TAG=FL o STATE_TAG=CA
 STATE_TAG           = os.environ.get("STATE_TAG", "FL").upper()
-LEADS_CSV_FILE      = OUT_DIR / f"leads_{STATE_TAG}.csv"
+LEADS_CSV_FILE      = OUT_DIR / f"leads_{STATE_TAG}.csv"    # solo score 8-10
+REVISAR_CSV_FILE    = OUT_DIR / f"revisar_{STATE_TAG}.csv"  # score 5-7, para revisión manual
 VERIFICAR_CSV_FILE  = OUT_DIR / "para_verificar.csv"
 # COMPARISON_MODE: registra GPT-mini vs Claude por casa (activa con COMPARISON_MODE=1)
 COMPARISON_MODE     = os.environ.get("COMPARISON_MODE", "0").strip() == "1"
@@ -87,6 +89,36 @@ def append_lead_to_csv(record):
         "Notas del setter":               "",
     }
     with open(LEADS_CSV_FILE, "a", newline="", encoding="utf-8-sig") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDNAMES)
+        if write_header:
+            writer.writeheader()
+        writer.writerow(row)
+
+def append_revisar_to_csv(record):
+    """Posibles (5-7): CSV separado para revisión manual."""
+    write_header = not REVISAR_CSV_FILE.exists() or REVISAR_CSV_FILE.stat().st_size == 0
+    tarp = ""
+    if record.get("lona_visible"):
+        color = (record.get("lona_color") or "").lower()
+        tarp = "SÍ (azul)" if "blue" in color else ("SÍ (plata)" if "silver" in color else "SÍ")
+    lat, lng = record.get("lat", ""), record.get("lng", "")
+    row = {
+        "Score":                          record.get("score_urgencia", ""),
+        "Lona":                           tarp,
+        "Dirección":                      record.get("address", ""),
+        "Año construcción":               record.get("year_built", ""),
+        "Lat":                            lat,
+        "Lng":                            lng,
+        "Link Google Maps":               record.get("gmaps", f"https://maps.google.com/?q={lat},{lng}"),
+        "Tipo techo":                     record.get("tipo_techo", ""),
+        "Descripción del daño":           record.get("descripcion", ""),
+        "Folio":                          record.get("folio", ""),
+        "Estado":                         "revisar",
+        "Contactado (sí/no)":             "",
+        "Daño confirmado (sí/no/no visible)": "",
+        "Notas del setter":               "",
+    }
+    with open(REVISAR_CSV_FILE, "a", newline="", encoding="utf-8-sig") as f:
         writer = csv.DictWriter(f, fieldnames=CSV_FIELDNAMES)
         if write_header:
             writer.writeheader()
@@ -1285,7 +1317,7 @@ def main():
                 "model":          model_used,
             }
             posibles.append(record)
-            append_lead_to_csv(record)
+            append_revisar_to_csv(record)
             cache_folio(folio_cache, folio, "lead", score=final)
             zip_leads[prop.get("zip", "??")] = zip_leads.get(prop.get("zip", "??"), 0) + 1
 
@@ -1460,91 +1492,79 @@ def write_run_history(run_zips, analyzed, candidates_hq, leads_new, leads_total,
     except Exception as e:
         log(f"⚠️ run_history push error: {e}")
 
+def _push_single_csv(local_path, gh_path, headers, quiet=False):
+    """Push un CSV local a GitHub (merge acumulativo por folio)."""
+    import io as _io
+    api_path = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{gh_path}"
+    gh_rows = {}; gh_sha = ""
+    existing_resp = requests.get(api_path, headers=headers, timeout=15)
+    if existing_resp.status_code == 200:
+        gh_meta = existing_resp.json()
+        gh_sha = gh_meta.get("sha", "")
+        gh_text = base64.b64decode(gh_meta["content"]).decode("utf-8-sig", errors="replace")
+        for row in csv.DictReader(gh_text.splitlines()):
+            folio = (row.get("Folio") or "").strip()
+            if folio:
+                gh_rows[folio] = row
+    local_rows = {}
+    if local_path.exists() and local_path.stat().st_size > 0:
+        with open(local_path, newline="", encoding="utf-8-sig") as f:
+            for row in csv.DictReader(f):
+                folio = (row.get("Folio") or "").strip()
+                if folio:
+                    local_rows[folio] = row
+    OPERATIONAL_FIELDS = {"Estado","Contactado (sí/no)","Daño confirmado (sí/no/no visible)","Notas del setter"}
+    merged = {}
+    for folio in set(gh_rows.keys()) | set(local_rows.keys()):
+        if folio in local_rows and folio not in gh_rows:
+            merged[folio] = local_rows[folio]
+        elif folio in gh_rows and folio not in local_rows:
+            merged[folio] = gh_rows[folio]
+        else:
+            row = dict(local_rows[folio])
+            for field in OPERATIONAL_FIELDS:
+                gh_val = (gh_rows[folio].get(field) or "").strip()
+                if gh_val:
+                    row[field] = gh_val
+            merged[folio] = row
+    if not merged:
+        return 0
+    buf = _io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=CSV_FIELDNAMES, extrasaction="ignore")
+    writer.writeheader()
+    for row in merged.values():
+        writer.writerow(row)
+    merged_bytes = ("﻿" + buf.getvalue()).encode("utf-8")
+    local_path.write_bytes(merged_bytes)
+    content = base64.b64encode(merged_bytes).decode()
+    fecha = datetime.now().strftime("%Y-%m-%d")
+    payload = {"message": f"auto: scanner {fecha} ({len(merged)} rows)", "content": content}
+    if gh_sha:
+        payload["sha"] = gh_sha
+    r = requests.put(api_path, headers=headers, json=payload, timeout=30)
+    if r.status_code in (200, 201):
+        return len(merged)
+    else:
+        log(f"⚠️ GitHub push failed {gh_path}: HTTP {r.status_code}")
+        return -1
+
 def push_csv_to_github(quiet=False):
-    """Push leads_para_ventas.csv a GitHub mergeando con el CSV existente (acumulativo por folio).
-    El CSV en GitHub siempre contiene TODOS los leads históricos — nunca se sobreescribe limpio."""
+    """Push leads_<STATE>.csv y revisar_<STATE>.csv a GitHub (merge acumulativo por folio)."""
     if not GITHUB_TOKEN:
         if not quiet:
             log("⚠️ GitHub push skipped (no GITHUB_TOKEN)")
         return
     try:
-        import io as _io
-        api_path = f"https://api.github.com/repos/{GITHUB_REPO}/contents/data/leads_para_ventas.csv"
         headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
-
-        # 1. Leer CSV existente en GitHub → dict por folio
-        gh_rows = {}
-        gh_sha = ""
-        existing_resp = requests.get(api_path, headers=headers, timeout=15)
-        if existing_resp.status_code == 200:
-            gh_meta = existing_resp.json()
-            gh_sha = gh_meta.get("sha", "")
-            gh_text = base64.b64decode(gh_meta["content"]).decode("utf-8-sig", errors="replace")
-            for row in csv.DictReader(gh_text.splitlines()):
-                folio = (row.get("Folio") or "").strip()
-                if folio:
-                    gh_rows[folio] = row
-
-        # 2. Leer CSV local → dict por folio
-        local_rows = {}
-        if LEADS_CSV_FILE.exists() and LEADS_CSV_FILE.stat().st_size > 0:
-            with open(LEADS_CSV_FILE, newline="", encoding="utf-8-sig") as f:
-                for row in csv.DictReader(f):
-                    folio = (row.get("Folio") or "").strip()
-                    if folio:
-                        local_rows[folio] = row
-
-        # 3. Merge inteligente:
-        #    - Leads nuevos (solo en local) → se agregan completos
-        #    - Leads existentes (en ambos) → campos del scanner desde local,
-        #      campos operacionales (Estado, Contactado, Daño, Notas) → GitHub gana
-        #      si tiene valor no vacío (preserva correcciones manuales del equipo)
-        OPERATIONAL_FIELDS = {
-            "Estado", "Contactado (sí/no)",
-            "Daño confirmado (sí/no/no visible)", "Notas del setter"
-        }
-        merged = {}
-        all_folios = set(gh_rows.keys()) | set(local_rows.keys())
-        for folio in all_folios:
-            if folio in local_rows and folio not in gh_rows:
-                merged[folio] = local_rows[folio]
-            elif folio in gh_rows and folio not in local_rows:
-                merged[folio] = gh_rows[folio]
-            else:
-                row = dict(local_rows[folio])
-                for field in OPERATIONAL_FIELDS:
-                    gh_val = (gh_rows[folio].get(field) or "").strip()
-                    if gh_val:
-                        row[field] = gh_val
-                merged[folio] = row
-        if not merged:
-            if not quiet:
-                log("⚠️ CSV push skipped (sin leads)")
-            return
-
-        # 4. Escribir merged de vuelta al archivo local (estado local = estado GitHub)
-        buf = _io.StringIO()
-        writer = csv.DictWriter(buf, fieldnames=CSV_FIELDNAMES, extrasaction="ignore")
-        writer.writeheader()
-        for row in merged.values():
-            writer.writerow(row)
-        merged_bytes = ("﻿" + buf.getvalue()).encode("utf-8")
-        LEADS_CSV_FILE.write_bytes(merged_bytes)
-
-        # 5. Push a GitHub
-        content = base64.b64encode(merged_bytes).decode()
-        fecha = datetime.now().strftime("%Y-%m-%d")
-        payload = {"message": f"auto: scanner run {fecha} ({len(merged)} leads)", "content": content}
-        if gh_sha:
-            payload["sha"] = gh_sha
-        r = requests.put(api_path, headers=headers, json=payload, timeout=30)
-        if r.status_code in (200, 201):
-            if not quiet:
-                log(f"✅ CSV pushed to GitHub ({len(merged)} leads totales, {len(local_rows)} de esta corrida)")
-            else:
-                logp(f"  → CSV push incremental OK ({len(merged)} leads totales)\n")
-        else:
-            log(f"⚠️ GitHub push failed: HTTP {r.status_code} — {r.json().get('message','?')[:60]}")
+        leads_path = f"data/leads_{STATE_TAG}.csv"
+        n_leads   = _push_single_csv(LEADS_CSV_FILE,   leads_path,   headers, quiet)
+        # ── Revisar (5-7) ──
+        revisar_path = f"data/revisar_{STATE_TAG}.csv"
+        n_revisar = _push_single_csv(REVISAR_CSV_FILE, revisar_path, headers, quiet) if REVISAR_CSV_FILE.exists() else 0
+        if not quiet:
+            log(f"✅ GitHub: leads_{STATE_TAG}.csv ({n_leads}) + revisar_{STATE_TAG}.csv ({max(n_revisar,0)})")
+        elif n_leads > 0:
+            logp(f"  → push OK: {n_leads} leads, {max(n_revisar,0)} revisar\n")
     except Exception as e:
         log(f"⚠️ GitHub push error: {e}")
 
