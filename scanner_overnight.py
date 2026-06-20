@@ -702,7 +702,8 @@ def get_properties(zip_codes, zip_stats=None):
                 "where": f"TRUE_SITE_ZIP_CODE LIKE '{zc}%' AND (DOR_CODE_CUR LIKE '01%' OR DOR_CODE_CUR LIKE '02%' OR DOR_CODE_CUR LIKE '03%') AND CONDO_FLAG='N'",
                 "outFields": "FOLIO,TRUE_SITE_ADDR,TRUE_SITE_CITY,TRUE_SITE_ZIP_CODE,YEAR_BUILT",
                 "returnGeometry": "true", "outSR": "4326", "f": "json",
-                "resultRecordCount": 500, "resultOffset": offset,
+                "resultRecordCount": int(os.environ.get("GIS_BATCH_SIZE", "500")),
+                "resultOffset": offset,
                 "orderByFields": "FOLIO ASC"
             }, headers={"User-Agent": "Mozilla/5.0"}, timeout=20)
             feats = r.json().get("features", [])
@@ -741,7 +742,9 @@ def load_zip_stats():
 def save_zip_stats(stats):
     ZIP_STATS_FILE.write_text(json.dumps(stats, indent=2))
 
-def select_run_zips(zip_stats, n_top=5, n_new=3):
+def select_run_zips(zip_stats, n_top=None, n_new=None):
+    n_top = n_top or int(os.environ.get("ZIP_N_TOP", "8"))
+    n_new = n_new or int(os.environ.get("ZIP_N_NEW", "4"))
     """70/30: top-N established ZIPs by lead rate + N new/under-sampled ZIPs.
     Hurricane mode: always returns HURRICANE_ZIPS unchanged.
     Test mode: SCANNER_ZIPS env var fuerza ZIPs específicos."""
@@ -1424,7 +1427,7 @@ def main():
         zip_stats[zc]["last_run"]  = today
         zip_stats[zc]["inventory"] = ALL_ZIPS.get(zc, 0)
         if not HURRICANE_ZIPS:
-            zip_stats[zc]["gis_offset"] = zip_stats[zc].get("gis_offset", 0) + 500
+            zip_stats[zc]["gis_offset"] = zip_stats[zc].get("gis_offset", 0) + int(os.environ.get("GIS_BATCH_SIZE", "500"))
     save_zip_stats(zip_stats)
     log(f"ZIP stats guardados: {len(zip_stats)} ZIPs con historial")
 
