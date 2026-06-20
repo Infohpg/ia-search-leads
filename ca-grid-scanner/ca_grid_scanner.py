@@ -2,13 +2,15 @@
 ca_grid_scanner.py — CA Roof Scanner via geographic grid
 No GIS API needed — sweeps lat/lng grid with satellite imagery.
 
-Zone: Inglewood, CA (ZIP 90301-90305) — housing stock 1940s-1960s
+Zone: South LA / Inglewood / Compton / Hawthorne / Gardena
+      lat 33.850-33.990, lng -118.460 to -118.230 (~8,200 cells total)
 Grid: ~200m spacing, zoom 19 (~381m×381m coverage per image)
 
 Output: scan_results/leads_CA.csv + scan_results/revisar_CA.csv
 Usage:
     OPENAI_API_KEY=... GOOGLE_MAPS_API_KEY=... python3 ca_grid_scanner.py
-    DRY_RUN=1 ...  (no AI calls, just prints grid cells)
+    DRY_RUN=1 ...  (no AI calls, just prints grid + exits)
+    SCANNER_MAX=6000 ...  (default: scan 6000 cells per run)
 """
 
 import os, csv, json, time, math, base64, io
@@ -26,18 +28,19 @@ if not OPENAI_KEY or not MAPS_KEY:
     raise RuntimeError("OPENAI_API_KEY y GOOGLE_MAPS_API_KEY son requeridas")
 
 # ─── CONFIGURACIÓN ─────────────────────────────────────────────────────────────
-DRY_RUN    = os.environ.get("DRY_RUN", "0").strip() == "1"
-STATE_TAG  = "CA"
-MAX_SPEND  = float(os.environ.get("MAX_SPEND_USD", "3.00"))
-MAX_CELLS  = int(os.environ.get("SCANNER_MAX", "9999"))
+DRY_RUN        = os.environ.get("DRY_RUN", "0").strip() == "1"
+STATE_TAG      = "CA"
+MAX_AI_SPEND   = float(os.environ.get("MAX_AI_SPEND_USD", "5.00"))  # solo IA, Maps se paga aparte
+MAX_CELLS      = int(os.environ.get("SCANNER_MAX", "6000"))
 
-# Bounding box: Inglewood / South LA
-# Zona: casas 1940s-1960s, alta densidad SFH, similar al perfil de Hialeah en FL
+# Bounding box expandida: South LA + Inglewood + Compton + Hawthorne + Gardena
+# Zona: stock residencial 1940s-1970s, alta densidad SFH
+# Celdas disponibles: ~8,200 (200m step) → SCANNER_MAX=6000 corre las primeras 6,000
 BBOX = {
-    "lat_min": 33.940,
-    "lat_max": 33.975,
-    "lng_min": -118.385,
-    "lng_max": -118.325,
+    "lat_min": 33.850,
+    "lat_max": 33.990,
+    "lng_min": -118.460,
+    "lng_max": -118.230,
 }
 GRID_STEP_M = 200  # metros entre centros de celda
 ZOOM        = 19   # ~381m × 381m de cobertura por imagen
@@ -277,7 +280,7 @@ def main():
     log(f"CA GRID SCANNER — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     log(f"Zona: Inglewood, CA — bbox {BBOX}")
     log(f"Grid: {GRID_STEP_M}m step, zoom {ZOOM} | DRY_RUN={DRY_RUN}")
-    log(f"Límite gasto: ${MAX_SPEND:.2f} | MAX_CELLS={MAX_CELLS}")
+    log(f"Límite IA: ${MAX_AI_SPEND:.2f} | MAX_CELLS={MAX_CELLS}")
     log(f"{'='*60}")
 
     cells = generate_grid(BBOX, GRID_STEP_M)
@@ -296,9 +299,8 @@ def main():
     log(f"Celdas nuevas a analizar: {len(new_cells)}")
 
     for i, (lat, lng) in enumerate(new_cells[:MAX_CELLS]):
-        total_spend = STATS["spend_ai"] + STATS["spend_maps"] + STATS["spend_geocode"]
-        if total_spend >= MAX_SPEND:
-            log(f"⛔ Límite de gasto alcanzado (${total_spend:.3f} >= ${MAX_SPEND})")
+        if STATS["spend_ai"] >= MAX_AI_SPEND:
+            log(f"⛔ Límite IA alcanzado (${STATS['spend_ai']:.3f} >= ${MAX_AI_SPEND})")
             break
 
         cell_key = f"{lat}_{lng}"
@@ -368,6 +370,7 @@ def main():
     log("")
     log("=" * 60)
     log(f"REPORTE FINAL — CA Grid Scanner")
+    total_spend = STATS["spend_ai"] + STATS["spend_maps"] + STATS["spend_geocode"]
     log(f"  Celdas analizadas:  {STATS['cells_analyzed']}")
     log(f"  Leads calientes:    {STATS['hot_leads']}  (score 8-10) → leads_CA.csv")
     log(f"  En revisión:        {STATS['revisar']}  (score 5-7) → revisar_CA.csv")
@@ -375,7 +378,7 @@ def main():
     log(f"  Costo IA:           ${STATS['spend_ai']:.4f}")
     log(f"  Costo Maps (sat):   ${STATS['spend_maps']:.4f}")
     log(f"  Costo Geocoding:    ${STATS['spend_geocode']:.4f}")
-    log(f"  TOTAL:              ${total_spend:.4f}")
+    log(f"  TOTAL estimado:     ${total_spend:.4f}")
     log("=" * 60)
 
 if __name__ == "__main__":
