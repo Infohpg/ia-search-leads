@@ -37,7 +37,7 @@ MAX_CELLS      = int(os.environ.get("SCANNER_MAX", "6000"))
 # Zona: stock residencial 1940s-1970s, alta densidad SFH
 # Celdas disponibles: ~8,200 (200m step) → SCANNER_MAX=6000 corre las primeras 6,000
 BBOX = {
-    "lat_min": 33.850,
+    "lat_min": 33.900,   # excluye zona industrial/LAX (33.85-33.90)
     "lat_max": 33.990,
     "lng_min": -118.460,
     "lng_max": -118.230,
@@ -177,7 +177,7 @@ def analyze_cell(img_b64, lat, lng):
             "content": [
                 {"type": "image_url", "image_url": {
                     "url": f"data:image/jpeg;base64,{img_b64}",
-                    "detail": "high"
+                    "detail": "low"
                 }},
                 {"type": "text", "text": ANALYSIS_PROMPT}
             ]
