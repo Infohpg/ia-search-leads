@@ -1246,6 +1246,17 @@ def main():
         desc_detail = detail.get("damage_description", "")
         full_desc   = (desc_main + " " + desc_detail).strip()
 
+        # Anti-ambiguous-9: si la descripción admite incertidumbre → cap en POSIBLE (7)
+        # Causa del bug: modelo devuelve tarp_evidence != "none" pero descripción dice "ambiguous"
+        _AMBIG = ["lacks clear physical evidence", "lack of physical evidence",
+                  "ambiguous", "warranting a visit", "warrant a visit",
+                  "uncertain", "inconclusive", "cannot confirm",
+                  "no visible wrinkle", "no wrinkle", "without wrinkle",
+                  "no clear physical", "may not be a tarp", "not certain"]
+        if final >= 8 and any(sig in full_desc.lower() for sig in _AMBIG):
+            final = min(final, 7)
+            logp(f"  ⚠ ambiguity-cap→7 (description lacks physical tarp evidence)\n")
+
         # ── Clasificación 3 niveles ──
         if final >= 8:
             tier_label = "🔥CALIENTE"
@@ -1258,10 +1269,10 @@ def main():
         logp(f"  → {full_desc[:110]}\n")
 
         if final >= 8:
-            # CALIENTE — confirmado, va a hoja Leads
+            # CALIENTE — entra como "revisar" (humano confirma antes de llamar)
             tier_hot += 1
             logp(f"  ✅ CALIENTE #{tier_hot}\n")
-            estado = "confirmado"
+            estado = "revisar"
             record = {
                 "rank":           tier_hot,
                 "address":        addr,
