@@ -41,10 +41,13 @@ if not MAPS_KEY:
     raise RuntimeError("GOOGLE_MAPS_API_KEY es requerida")
 
 # ─── CONFIGURACIÓN ─────────────────────────────────────────────────────────────
-DRY_RUN      = os.environ.get("DRY_RUN", "0").strip() == "1"
-MAX_ANALYZED = int(os.environ.get("MAX_ANALYZED", "6000"))
-MAX_AI_SPEND = float(os.environ.get("MAX_AI_SPEND_USD", "5.00"))
-STATE_TAG    = "CA"
+DRY_RUN          = os.environ.get("DRY_RUN", "0").strip() == "1"
+MAX_ANALYZED     = int(os.environ.get("MAX_ANALYZED", "6000"))
+MAX_AI_SPEND     = float(os.environ.get("MAX_AI_SPEND_USD", "5.00"))
+# Cap de registros a descargar del GIS por run. 30000 = ~3 min descarga, pool para 4-5 días.
+# El bbox total tiene 257k+ propiedades — descargar todo toma 31 min y agota el DNS.
+GIS_MAX_RECORDS  = int(os.environ.get("GIS_MAX_RECORDS", "30000"))
+STATE_TAG        = "CA"
 
 # Bbox predeterminada: Inglewood completo + buffer
 # Override: SCANNER_BBOX=xmin,ymin,xmax,ymax  (lng_min,lat_min,lng_max,lat_max)
@@ -95,11 +98,12 @@ def logp(msg):
 GIS_URL = ("https://services.arcgis.com/RmCCgQtiZLDCtblq/arcgis/rest/services/"
            "eGIS_Addressing_ADDRESS_POINTSv2/FeatureServer/0/query")
 
-def fetch_properties_la(bbox, max_total=None):
-    """Descarga propiedades del GIS de LA County con paginación de 1000 en 1000."""
+def fetch_properties_la(bbox, max_records=None):
+    """Descarga propiedades del GIS de LA County, 1000 por página. max_records limita el total."""
     props = []
     seen_ain = set()
     offset = 0
+    page = 0
     while True:
         params = {
             "where":           "1=1",
@@ -126,6 +130,7 @@ def fetch_properties_la(bbox, max_total=None):
                 time.sleep(3)
 
         feats = data.get("features", [])
+        page += 1
         if not feats:
             break
 
@@ -148,15 +153,18 @@ def fetch_properties_la(bbox, max_total=None):
             props.append({"address": address, "lat": lat, "lng": lng,
                           "ain": ain, "zip": zipcode})
 
-        log(f"  GIS offset {offset}: {len(feats)} features | total: {len(props)}")
+        log(f"  GIS página {page} (offset {offset}): {len(feats)} features | acumulado: {len(props)}")
 
-        if not data.get("exceededTransferLimit", False):
+        # Fin: menos de 1000 resultados O flag explícito de que no hay más O cap alcanzado
+        if len(feats) < 1000 or not data.get("exceededTransferLimit", False):
+            break
+        if max_records and len(props) >= max_records:
+            log(f"  GIS cap alcanzado: {len(props)} >= {max_records}")
             break
         offset += 1000
-        if max_total and len(props) >= max_total:
-            break
         time.sleep(0.5)
 
+    log(f"GIS descarga completa: {page} páginas, {len(props)} propiedades únicas")
     random.shuffle(props)
     return props
 
@@ -452,7 +460,7 @@ def _make_row(prop, score, tarp, tarp_color, roof_type, full_desc, estado):
 
 # ─── GITHUB PUSH ───────────────────────────────────────────────────────────────
 def push_to_github(local_path, gh_path, quiet=False):
-    if not GITHUB_TOKEN or not local_path.exists() or local_path.stat().st_size == 0:
+    if not GITHUB_TOKEN or not local_path.exists():
         return
     try:
         hdrs = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
@@ -484,10 +492,16 @@ def main():
     ain_cache = load_ain_cache()
     log(f"Cache: {len(ain_cache)} propiedades ya analizadas")
 
-    # Descargar propiedades del GIS de LA County
-    log("Descargando propiedades del GIS de LA County...")
-    all_props = fetch_properties_la(BBOX, max_total=MAX_ANALYZED * 3)
-    log(f"GIS: {len(all_props)} propiedades descargadas")
+    # Inicializar CSVs con headers (aunque no haya leads, el archivo existe para push)
+    for csv_path in (LEADS_CSV, REVISAR_CSV):
+        if not csv_path.exists() or csv_path.stat().st_size == 0:
+            with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
+                csv.DictWriter(f, fieldnames=CSV_FIELDNAMES).writeheader()
+
+    # Descargar propiedades del GIS de LA County (paginación hasta GIS_MAX_RECORDS)
+    log(f"Descargando propiedades del GIS de LA County (cap={GIS_MAX_RECORDS})...")
+    all_props = fetch_properties_la(BBOX, max_records=GIS_MAX_RECORDS)
+    log(f"GIS total: {len(all_props)} propiedades descargadas (cap={GIS_MAX_RECORDS})")
 
     if DRY_RUN:
         log("DRY_RUN=1 — primeras 5 propiedades y saliendo:")
@@ -624,7 +638,7 @@ def main():
     push_to_github(REVISAR_CSV, f"data/revisar_{STATE_TAG}.csv")
 
     # Reporte final
-    ai_spend   = STATS["step1_usd"] + STATS.get("step2_usd", 0.0)
+    ai_spend    = STATS["step1_usd"] + STATS.get("step2_usd", 0.0)
     total_spend = ai_spend + STATS["maps_usd"]
     log("")
     log("=" * 65)
@@ -637,7 +651,31 @@ def main():
     log(f"  Costo IA:           ${ai_spend:.4f}")
     log(f"  Costo Maps:         ${STATS['maps_usd']:.4f}")
     log(f"  TOTAL estimado:     ${total_spend:.4f}")
+    log(f"  Modelo:             {AI_MODEL} vía OpenRouter")
     log("=" * 65)
+
+    # run_history_CA.csv
+    hist_path = OUT_DIR / "run_history_CA.csv"
+    hist_fields = ["fecha", "analiz", "calientes", "posibles", "limpias", "errores",
+                   "ia_usd", "maps_usd", "total_usd", "modelo", "bbox"]
+    hist_exists = hist_path.exists() and hist_path.stat().st_size > 0
+    with open(hist_path, "a", newline="", encoding="utf-8") as hf:
+        hw = csv.DictWriter(hf, fieldnames=hist_fields)
+        if not hist_exists:
+            hw.writeheader()
+        hw.writerow({
+            "fecha":     datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "analiz":    analyzed,
+            "calientes": STATS["hot"],
+            "posibles":  STATS["posible"],
+            "limpias":   STATS["clean"],
+            "errores":   STATS["errors"],
+            "ia_usd":    f"{ai_spend:.4f}",
+            "maps_usd":  f"{STATS['maps_usd']:.4f}",
+            "total_usd": f"{total_spend:.4f}",
+            "modelo":    AI_MODEL,
+            "bbox":      f"{BBOX['xmin']},{BBOX['ymin']},{BBOX['xmax']},{BBOX['ymax']}",
+        })
 
 if __name__ == "__main__":
     main()
